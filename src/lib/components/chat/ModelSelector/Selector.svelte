@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { DropdownMenu } from 'bits-ui';
-	import { marked } from 'marked';
 	import Fuse from 'fuse.js';
 
 	import dayjs from '$lib/dayjs';
@@ -10,41 +9,32 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { flyAndScale } from '$lib/utils/transitions';
 
-	import { createEventDispatcher, onMount, getContext, tick } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { onMount, getContext, tick } from 'svelte';
 
 	import { deleteModel, getOllamaVersion, pullModel, unloadModel } from '$lib/apis/ollama';
 
-	import {
-		user,
-		MODEL_DOWNLOAD_POOL,
-		models,
-		mobile,
-		temporaryChatEnabled,
-		settings,
-		config
-	} from '$lib/stores';
+	import { user, MODEL_DOWNLOAD_POOL, models, mobile, settings, config } from '$lib/stores';
 	import { toast } from 'svelte-sonner';
-	import { capitalizeFirstLetter, sanitizeResponseContent, splitStream } from '$lib/utils';
+	import { splitStream } from '$lib/utils';
 	import { getModels } from '$lib/apis';
 
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
-	import Check from '$lib/components/icons/Check.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
+	import InfoCircle from '$lib/components/icons/InfoCircle.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import Switch from '$lib/components/common/Switch.svelte';
-	import ChatBubbleOval from '$lib/components/icons/ChatBubbleOval.svelte';
 
 	import ModelItem from './ModelItem.svelte';
 
 	const i18n = getContext('i18n');
-	const dispatch = createEventDispatcher();
 
 	export let id = '';
 	export let value = '';
 	export let placeholder = $i18n.t('Select a model');
 	export let searchEnabled = true;
 	export let searchPlaceholder = $i18n.t('Search a model');
+	export let showFilters = true;
+	export let showAutoMode = false;
+	export let mode: 'auto' | 'manual' = 'manual';
 
 	export let items: {
 		label: string;
@@ -66,6 +56,12 @@
 
 	let selectedModel = '';
 	$: selectedModel = items.find((item) => item.value === value) ?? '';
+	$: triggerLabel =
+		showAutoMode && mode === 'auto'
+			? $i18n.t('Auto Mode')
+			: selectedModel
+				? selectedModel.label
+				: placeholder;
 
 	let searchValue = '';
 
@@ -393,7 +389,14 @@
 	onOpenChange={async () => {
 		searchValue = '';
 		listScrollTop = 0;
-		window.setTimeout(() => document.getElementById('model-search-input')?.focus(), 0);
+		window.setTimeout(() => {
+			const searchInput = document.getElementById('model-search-input');
+			if (searchInput) {
+				searchInput.focus();
+			} else {
+				document.getElementById(`model-selector-${id}-auto-mode-button`)?.focus();
+			}
+		}, 0);
 
 		resetView();
 	}}
@@ -409,7 +412,7 @@
 			? ''
 			: 'outline-hidden focus:outline-hidden'}"
 		aria-label={selectedModel
-			? $i18n.t('Selected model: {{modelName}}', { modelName: selectedModel.label })
+			? $i18n.t('Selected model: {{modelName}}', { modelName: triggerLabel })
 			: placeholder}
 		id="model-selector-{id}-button"
 	>
@@ -427,11 +430,7 @@
 				);
 			}}
 		>
-			{#if selectedModel}
-				{selectedModel.label}
-			{:else}
-				{placeholder}
-			{/if}
+			{triggerLabel}
 			<ChevronDown className=" self-center ml-2 size-3" strokeWidth="2.5" />
 		</div>
 	</DropdownMenu.Trigger>
@@ -499,7 +498,7 @@
 								{/if}
 
 								<div class="px-2">
-									{#if tags && items.filter((item) => !(item.model?.info?.meta?.hidden ?? false)).length > 0}
+									{#if showFilters && tags && items.filter((item) => !(item.model?.info?.meta?.hidden ?? false)).length > 0}
 										<div
 											class=" flex w-full bg-white dark:bg-gray-850 overflow-x-auto scrollbar-none font-[450] mb-0.5"
 											on:wheel={(e) => {
@@ -598,7 +597,43 @@
 									{/if}
 								</div>
 
-								<div class="px-2.5 group relative">
+								{#if showAutoMode}
+									<div class="px-2.5 pt-1.5">
+										<button
+											id="model-selector-{id}-auto-mode-button"
+											class="flex w-full text-left font-medium select-none items-center justify-between rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-hidden transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl cursor-pointer"
+											on:click={() => {
+												mode = 'auto';
+												show = false;
+											}}
+										>
+											<div class="min-w-0 flex items-center gap-2">
+												<img
+													src="/favicon.png"
+													alt={$i18n.t('Auto mode icon')}
+													class="rounded-full size-5 flex items-center"
+													loading="lazy"
+												/>
+												<div class="flex items-center gap-1.5">
+													<div class="line-clamp-1">{$i18n.t('Auto Mode')}</div>
+													<Tooltip
+														content={$i18n.t(
+															'Open WebUI automatically chooses the best model for your request.'
+														)}
+														placement="top-start"
+													>
+														<div class="text-gray-500 dark:text-gray-400">
+															<InfoCircle className="size-3.5" strokeWidth="1.8" />
+														</div>
+													</Tooltip>
+												</div>
+											</div>
+										</button>
+									</div>
+									<div class="mx-3 my-1 h-px bg-gray-100 dark:bg-gray-800/80" />
+								{/if}
+
+									<div class="px-2.5 group relative {showAutoMode ? '' : 'pt-1.5'}">
 									{#if filteredItems.length === 0}
 										{#if items.length === 0 && $user?.role === 'admin'}
 											<div class="flex flex-col items-start justify-center py-6 px-4 text-start">
@@ -647,6 +682,7 @@
 													{pinModelHandler}
 													{unloadModelHandler}
 													onClick={() => {
+														mode = 'manual';
 														value = item.value;
 														selectedModelIdx = index;
 

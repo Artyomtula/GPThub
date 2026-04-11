@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { models, showSettings, settings, user, mobile, config } from '$lib/stores';
-	import { onMount, tick, getContext } from 'svelte';
+	import { models, settings, user } from '$lib/stores';
+	import { getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import Selector from './ModelSelector/Selector.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
@@ -10,6 +10,7 @@
 
 	export let selectedModels = [''];
 	export let disabled = false;
+	export let modelSelectionMode: 'auto' | 'manual' = 'auto';
 
 	export let showSetDefault = true;
 
@@ -57,6 +58,9 @@
 					<Selector
 						id={`${selectedModelIdx}`}
 						placeholder={$i18n.t('Select a model')}
+						searchEnabled={false}
+						showFilters={false}
+						showAutoMode={selectedModelIdx === 0}
 						items={$models.map((model) => ({
 							value: model.id,
 							label: model.name,
@@ -64,6 +68,7 @@
 						}))}
 						{pinModelHandler}
 						bind:value={selectedModel}
+						bind:mode={modelSelectionMode}
 					/>
 				</div>
 			</div>

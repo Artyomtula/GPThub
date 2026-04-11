@@ -134,6 +134,7 @@
 	let eventCallback = null;
 
 	let selectedModels = [''];
+	let modelSelectionMode: 'auto' | 'manual' = 'auto';
 	let atSelectedModel: Model | undefined;
 	let selectedModelIds = [];
 	$: if (atSelectedModel !== undefined) {
@@ -145,6 +146,11 @@
 	let selectedToolIds = [];
 	let selectedFilterIds = [];
 	let pendingOAuthTools = [];
+
+	const MODEL_SELECTION_MODE_STORAGE_KEY = 'gpthub:model-selection-mode';
+	$: if (typeof window !== 'undefined') {
+		localStorage.setItem(MODEL_SELECTION_MODE_STORAGE_KEY, modelSelectionMode);
+	}
 
 	let imageGenerationEnabled = false;
 	let webSearchEnabled = false;
@@ -653,6 +659,12 @@
 	onMount(() => {
 		loading = true;
 		console.log('mounted');
+
+		const savedMode = localStorage.getItem(MODEL_SELECTION_MODE_STORAGE_KEY);
+		if (savedMode === 'auto' || savedMode === 'manual') {
+			modelSelectionMode = savedMode;
+		}
+
 		window.addEventListener('message', onMessageHandler);
 		$socket?.on('events', chatEventHandler);
 
@@ -2758,6 +2770,7 @@
 						{history}
 						title={$chatTitle}
 						bind:selectedModels
+						bind:modelSelectionMode
 						shareEnabled={!!history.currentId}
 						{initNewChat}
 						{archiveChatHandler}
@@ -2928,6 +2941,7 @@
 								<Placeholder
 									{history}
 									{selectedModels}
+									{modelSelectionMode}
 									bind:messageInput
 									bind:files
 									bind:prompt

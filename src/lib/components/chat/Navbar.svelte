@@ -49,6 +49,7 @@
 	export let chat;
 	export let history;
 	export let selectedModels;
+	export let modelSelectionMode: 'auto' | 'manual' = 'auto';
 	export let showModelSelector = true;
 
 	export let onSaveTempChat: () => {};
@@ -112,7 +113,7 @@
 			"
 				>
 					{#if showModelSelector}
-						<ModelSelector bind:selectedModels showSetDefault={!shareEnabled} />
+						<ModelSelector bind:selectedModels bind:modelSelectionMode showSetDefault={false} />
 					{/if}
 				</div>
 

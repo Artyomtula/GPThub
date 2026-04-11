@@ -310,3 +310,7 @@ dist
 cypress/videos
 cypress/screenshots
 .vscode/settings.json
+
+# Local GPTHub working docs (not for commit)
+docs/gpthub/
+docs/gpthub/checklist.md
