@@ -3056,6 +3056,14 @@ async def non_streaming_chat_response_handler(response, ctx):
     if response_data is None:
         return response
 
+    if isinstance(response_data, dict):
+        selection_effective = metadata.get('selection_effective')
+        if selection_effective:
+            response_data.setdefault('selection_effective', selection_effective)
+            resolved_model_id = selection_effective.get('resolved_model_id')
+            if resolved_model_id:
+                response_data.setdefault('selected_model_id', resolved_model_id)
+
     if event_emitter:
         try:
             if 'error' in response_data:

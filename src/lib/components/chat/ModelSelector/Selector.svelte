@@ -19,6 +19,7 @@
 	import { getModels } from '$lib/apis';
 
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
+	import Check from '$lib/components/icons/Check.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
 	import InfoCircle from '$lib/components/icons/InfoCircle.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -166,6 +167,15 @@
 
 	const resetView = async () => {
 		await tick();
+
+		if (showAutoMode && mode === 'auto') {
+			selectedModelIdx = -1;
+			listScrollTop = 0;
+			if (listContainer) {
+				listContainer.scrollTop = 0;
+			}
+			return;
+		}
 
 		const selectedInFiltered = filteredItems.findIndex((item) => item.value === value);
 
@@ -601,9 +611,13 @@
 									<div class="px-2.5 pt-1.5">
 										<button
 											id="model-selector-{id}-auto-mode-button"
-											class="flex w-full text-left font-medium select-none items-center justify-between rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-hidden transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl cursor-pointer"
+											class="flex w-full text-left font-medium select-none items-center justify-between rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-hidden transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl cursor-pointer {mode ===
+											'auto'
+												? 'bg-gray-100 dark:bg-gray-800 ring-1 ring-gray-200/90 dark:ring-gray-700/80'
+												: ''}"
 											on:click={() => {
 												mode = 'auto';
+												selectedModelIdx = -1;
 												show = false;
 											}}
 										>
@@ -628,12 +642,19 @@
 													</Tooltip>
 												</div>
 											</div>
+											{#if mode === 'auto'}
+												<div
+													class="w-4 h-4 flex items-center justify-center text-gray-700 dark:text-gray-200"
+												>
+													<Check className="size-3" />
+												</div>
+											{/if}
 										</button>
 									</div>
 									<div class="mx-3 my-1 h-px bg-gray-100 dark:bg-gray-800/80" />
 								{/if}
 
-									<div class="px-2.5 group relative {showAutoMode ? '' : 'pt-1.5'}">
+								<div class="px-2.5 group relative {showAutoMode ? '' : 'pt-1.5'}">
 									{#if filteredItems.length === 0}
 										{#if items.length === 0 && $user?.role === 'admin'}
 											<div class="flex flex-col items-start justify-center py-6 px-4 text-start">
@@ -679,6 +700,8 @@
 													{item}
 													{index}
 													{value}
+													selectionEnabled={!(showAutoMode && mode === 'auto')}
+													inactive={showAutoMode && mode === 'auto'}
 													{pinModelHandler}
 													{unloadModelHandler}
 													onClick={() => {

@@ -23,6 +23,8 @@
 	export let item: any = {};
 	export let index: number = -1;
 	export let value: string = '';
+	export let selectionEnabled: boolean = true;
+	export let inactive: boolean = false;
 
 	export let unloadModelHandler: (modelValue: string) => void = () => {};
 	export let pinModelHandler: (modelId: string) => void = () => {};
@@ -48,13 +50,16 @@
 
 <button
 	role="option"
-	aria-selected={value === item.value}
+	aria-selected={selectionEnabled && value === item.value}
 	aria-label={$i18n.t('Select {{modelName}} model', { modelName: item.label })}
-	class="flex group/item w-full text-left font-medium line-clamp-1 select-none items-center rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-hidden transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl cursor-pointer data-highlighted:bg-muted {index ===
-	selectedModelIdx
+	class="flex group/item w-full text-left font-medium line-clamp-1 select-none items-center rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-hidden transition-all duration-75 {inactive
+		? 'hover:bg-transparent dark:hover:bg-transparent'
+		: 'hover:bg-gray-100 dark:hover:bg-gray-800'} rounded-xl cursor-pointer {inactive
+		? ''
+		: 'data-highlighted:bg-muted'} {index === selectedModelIdx && selectionEnabled
 		? 'bg-gray-100 dark:bg-gray-800 group-hover:bg-transparent'
-		: ''}"
-	data-arrow-selected={index === selectedModelIdx}
+		: ''} {inactive ? 'opacity-70' : ''}"
+	data-arrow-selected={selectionEnabled && index === selectedModelIdx}
 	data-value={item.value}
 	on:click={() => {
 		onClick();

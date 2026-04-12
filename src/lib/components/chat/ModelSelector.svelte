@@ -11,6 +11,8 @@
 	export let selectedModels = [''];
 	export let disabled = false;
 	export let modelSelectionMode: 'auto' | 'manual' = 'auto';
+	let modeHydrated = false;
+	let modeSaveInFlight = false;
 
 	export let showSetDefault = true;
 
@@ -38,6 +40,36 @@
 		settings.set({ ...$settings, pinnedModels: pinnedModels });
 		await updateUserSettings(localStorage.token, { ui: $settings });
 	};
+
+	$: if (!modeHydrated && $settings) {
+		const persistedMode = $settings?.modelSelectionMode;
+		if (persistedMode === 'auto' || persistedMode === 'manual') {
+			modelSelectionMode = persistedMode;
+		}
+		// Wait for user settings hydration before allowing writes.
+		// Empty object usually means settings are not loaded yet.
+		if (Object.keys($settings).length > 0 || persistedMode !== undefined) {
+			modeHydrated = true;
+		}
+	}
+
+	$: if (
+		modeHydrated &&
+		!modeSaveInFlight &&
+		$settings &&
+		($settings?.modelSelectionMode ?? 'auto') !== modelSelectionMode
+	) {
+		const nextSettings = { ...$settings, modelSelectionMode };
+		modeSaveInFlight = true;
+		settings.set(nextSettings);
+		updateUserSettings(localStorage.token, { ui: nextSettings })
+			.catch(() => {
+				toast.error($i18n.t('Failed to save model selection mode'));
+			})
+			.finally(() => {
+				modeSaveInFlight = false;
+			});
+	}
 
 	$: if (selectedModels.length > 0 && $models.length > 0) {
 		const _selectedModels = selectedModels.map((model) =>

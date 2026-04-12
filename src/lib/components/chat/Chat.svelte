@@ -147,11 +147,6 @@
 	let selectedFilterIds = [];
 	let pendingOAuthTools = [];
 
-	const MODEL_SELECTION_MODE_STORAGE_KEY = 'gpthub:model-selection-mode';
-	$: if (typeof window !== 'undefined') {
-		localStorage.setItem(MODEL_SELECTION_MODE_STORAGE_KEY, modelSelectionMode);
-	}
-
 	let imageGenerationEnabled = false;
 	let webSearchEnabled = false;
 	let codeInterpreterEnabled = false;
@@ -660,11 +655,6 @@
 		loading = true;
 		console.log('mounted');
 
-		const savedMode = localStorage.getItem(MODEL_SELECTION_MODE_STORAGE_KEY);
-		if (savedMode === 'auto' || savedMode === 'manual') {
-			modelSelectionMode = savedMode;
-		}
-
 		window.addEventListener('message', onMessageHandler);
 		$socket?.on('events', chatEventHandler);
 
@@ -1060,8 +1050,16 @@
 			await temporaryChatEnabled.set(false);
 		}
 
+		// Use server-persisted selection mode as the single source of truth.
+		if ($settings?.modelSelectionMode === 'auto' || $settings?.modelSelectionMode === 'manual') {
+			modelSelectionMode = $settings.modelSelectionMode;
+		}
+
 		const availableModels = $models
 			.filter((m) => !(m?.info?.meta?.hidden ?? false))
+			.map((m) => m.id);
+		const availableNonArenaModels = $models
+			.filter((m) => !(m?.info?.meta?.hidden ?? false) && m?.owned_by !== 'arena')
 			.map((m) => m.id);
 
 		const defaultModels = $config?.default_models ? $config?.default_models.split(',') : [];
@@ -1215,6 +1213,21 @@
 		if ($page.url.searchParams.get('call') === 'true') {
 			showCallOverlay.set(true);
 			showControls.set(true);
+		}
+
+		// In auto mode avoid arena wrapper as the default/fallback selected model.
+		if (modelSelectionMode === 'auto') {
+			const firstSelectedModelId = selectedModels?.[0];
+			const firstSelectedModel = $models.find((m) => m.id === firstSelectedModelId);
+			if (
+				!firstSelectedModelId ||
+				firstSelectedModel?.owned_by === 'arena' ||
+				!availableModels.includes(firstSelectedModelId)
+			) {
+				if (availableNonArenaModels.length > 0) {
+					selectedModels = [availableNonArenaModels[0]];
+				}
+			}
 		}
 
 		if ($page.url.searchParams.get('q')) {
@@ -1935,6 +1948,11 @@
 				? [atSelectedModel.id]
 				: selectedModels;
 
+		// Auto mode is a single backend-routed request; do not fan out across multiple models.
+		if (!modelId && modelSelectionMode === 'auto') {
+			selectedModelIds = selectedModelIds.slice(0, 1);
+		}
+
 		// Create response messages for each selected model
 		for (const [_modelIdx, modelId] of selectedModelIds.entries()) {
 			const model = $models.filter((m) => m.id === modelId).at(0);
@@ -2081,6 +2099,45 @@
 		return tokens
 			.filter(Boolean)
 			.map((token) => decodeURIComponent(JSON.parse(`"${token.replace(/"/g, '\\"')}"`)));
+	};
+
+	const applySelectionEffective = (
+		selectionEffective: {
+			mode?: 'auto' | 'manual';
+			resolved_model_id?: string;
+		},
+		responseMessageId?: string
+	) => {
+		if (!selectionEffective || typeof selectionEffective !== 'object') return;
+
+		const effectiveMode = selectionEffective.mode;
+		if (effectiveMode === 'auto' || effectiveMode === 'manual') {
+			modelSelectionMode = effectiveMode;
+		}
+
+		const resolvedModelId = selectionEffective.resolved_model_id;
+		if (typeof resolvedModelId !== 'string' || resolvedModelId.length === 0) {
+			toast.error($i18n.t('Selected model is unavailable.'));
+			return;
+		}
+
+		const resolvedModel = $models.find((m) => m.id === resolvedModelId);
+		if (!resolvedModel) {
+			toast.error($i18n.t('Selected model is unavailable.'));
+			return;
+		}
+
+		// Backend is authoritative for the effective model in both modes.
+		selectedModels = [resolvedModelId];
+
+		if (responseMessageId && history.messages?.[responseMessageId]) {
+			history.messages[responseMessageId] = {
+				...history.messages[responseMessageId],
+				model: resolvedModelId,
+				modelName: resolvedModel.name ?? resolvedModelId
+			};
+			history = history;
+		}
 	};
 
 	const sendMessageSocket = async (model, _messages, _history, responseMessageId, _chatId) => {
@@ -2242,6 +2299,13 @@
 			{
 				stream: stream,
 				model: model.id,
+				model_selection_mode: modelSelectionMode,
+				selection: {
+					mode: modelSelectionMode,
+					model_ids: (atSelectedModel !== undefined ? [atSelectedModel.id] : selectedModels).filter(
+						(modelId) => modelId && typeof modelId === 'string'
+					)
+				},
 				messages: messages,
 				params: {
 					...$settings?.params,
@@ -2335,6 +2399,8 @@
 			if (res.error) {
 				await handleOpenAIError(res.error, responseMessage);
 			} else {
+				applySelectionEffective(res.selection_effective, responseMessageId);
+
 				if (taskIds) {
 					taskIds.push(res.task_id);
 				} else {
