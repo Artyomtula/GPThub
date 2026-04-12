@@ -38,6 +38,7 @@
 
 	export let atSelectedModel: Model | undefined;
 	export let selectedModels: [''];
+	export let modelSelectionMode: 'auto' | 'manual' = 'manual';
 
 	export let history;
 
@@ -143,7 +144,9 @@
 						class=" text-3xl @sm:text-3xl line-clamp-1 flex items-center"
 						in:fade={{ duration: 100 }}
 					>
-						{#if models[selectedModelIdx]?.name}
+						{#if modelSelectionMode === 'auto'}
+							<span class="line-clamp-1">{$i18n.t('Auto Mode')}</span>
+						{:else if models[selectedModelIdx]?.name}
 							<Tooltip
 								content={models[selectedModelIdx]?.name}
 								placement="top"
@@ -161,7 +164,13 @@
 
 				<div class="flex mt-1 mb-2">
 					<div in:fade={{ duration: 100, delay: 50 }}>
-						{#if models[selectedModelIdx]?.info?.meta?.description ?? null}
+						{#if modelSelectionMode === 'auto'}
+							<div
+								class="mt-0.5 px-2 text-sm font-normal text-gray-500 dark:text-gray-400 line-clamp-2 max-w-xl"
+							>
+								{$i18n.t('Open WebUI automatically chooses the best model for your request.')}
+							</div>
+						{:else if models[selectedModelIdx]?.info?.meta?.description ?? null}
 							<Tooltip
 								className=" w-fit"
 								content={marked.parse(

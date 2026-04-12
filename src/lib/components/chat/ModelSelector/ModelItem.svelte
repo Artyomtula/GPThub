@@ -10,12 +10,12 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { copyToClipboard, sanitizeResponseContent } from '$lib/utils';
 	import ArrowUpTray from '$lib/components/icons/ArrowUpTray.svelte';
-	import Check from '$lib/components/icons/Check.svelte';
 	import ModelItemMenu from './ModelItemMenu.svelte';
 	import EllipsisHorizontal from '$lib/components/icons/EllipsisHorizontal.svelte';
 	import { toast } from 'svelte-sonner';
 	import Tag from '$lib/components/icons/Tag.svelte';
-	import Label from '$lib/components/icons/Label.svelte';
+	import Cloud from '$lib/components/icons/Cloud.svelte';
+	import Computer from '$lib/components/icons/Computer.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -23,6 +23,8 @@
 	export let item: any = {};
 	export let index: number = -1;
 	export let value: string = '';
+	export let selectionEnabled: boolean = true;
+	export let inactive: boolean = false;
 
 	export let unloadModelHandler: (modelValue: string) => void = () => {};
 	export let pinModelHandler: (modelId: string) => void = () => {};
@@ -41,17 +43,23 @@
 	};
 
 	let showMenu = false;
+
+	const isLocalModel = (model: any) =>
+		model?.owned_by === 'ollama' || model?.connection_type === 'local';
 </script>
 
 <button
 	role="option"
-	aria-selected={value === item.value}
+	aria-selected={selectionEnabled && value === item.value}
 	aria-label={$i18n.t('Select {{modelName}} model', { modelName: item.label })}
-	class="flex group/item w-full text-left font-medium line-clamp-1 select-none items-center rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-hidden transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl cursor-pointer data-highlighted:bg-muted {index ===
-	selectedModelIdx
+	class="flex group/item w-full text-left font-medium line-clamp-1 select-none items-center rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-hidden transition-all duration-75 {inactive
+		? 'hover:bg-transparent dark:hover:bg-transparent'
+		: 'hover:bg-gray-100 dark:hover:bg-gray-800'} rounded-xl cursor-pointer {inactive
+		? ''
+		: 'data-highlighted:bg-muted'} {index === selectedModelIdx && selectionEnabled
 		? 'bg-gray-100 dark:bg-gray-800 group-hover:bg-transparent'
-		: ''}"
-	data-arrow-selected={index === selectedModelIdx}
+		: ''} {inactive ? 'opacity-70' : ''}"
+	data-arrow-selected={selectionEnabled && index === selectedModelIdx}
 	data-value={item.value}
 	on:click={() => {
 		onClick();
@@ -162,47 +170,6 @@
 					{/key}
 				{/if}
 
-				{#if item.model?.direct}
-					<Tooltip content={`${$i18n.t('Direct')}`}>
-						<div class="translate-y-[1px]">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								viewBox="0 0 16 16"
-								fill="currentColor"
-								class="size-3"
-							>
-								<path
-									fill-rule="evenodd"
-									d="M2 2.75A.75.75 0 0 1 2.75 2C8.963 2 14 7.037 14 13.25a.75.75 0 0 1-1.5 0c0-5.385-4.365-9.75-9.75-9.75A.75.75 0 0 1 2 2.75Zm0 4.5a.75.75 0 0 1 .75-.75 6.75 6.75 0 0 1 6.75 6.75.75.75 0 0 1-1.5 0C8 10.35 5.65 8 2.75 8A.75.75 0 0 1 2 7.25ZM3.5 11a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z"
-									clip-rule="evenodd"
-								/>
-							</svg>
-						</div>
-					</Tooltip>
-				{:else if item.model.connection_type === 'external'}
-					<Tooltip content={`${$i18n.t('External')}`}>
-						<div class="translate-y-[1px]">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								viewBox="0 0 16 16"
-								fill="currentColor"
-								class="size-3"
-							>
-								<path
-									fill-rule="evenodd"
-									d="M8.914 6.025a.75.75 0 0 1 1.06 0 3.5 3.5 0 0 1 0 4.95l-2 2a3.5 3.5 0 0 1-5.396-4.402.75.75 0 0 1 1.251.827 2 2 0 0 0 3.085 2.514l2-2a2 2 0 0 0 0-2.828.75.75 0 0 1 0-1.06Z"
-									clip-rule="evenodd"
-								/>
-								<path
-									fill-rule="evenodd"
-									d="M7.086 9.975a.75.75 0 0 1-1.06 0 3.5 3.5 0 0 1 0-4.95l2-2a3.5 3.5 0 0 1 5.396 4.402.75.75 0 0 1-1.251-.827 2 2 0 0 0-3.085-2.514l-2 2a2 2 0 0 0 0 2.828.75.75 0 0 1 0 1.06Z"
-									clip-rule="evenodd"
-								/>
-							</svg>
-						</div>
-					</Tooltip>
-				{/if}
-
 				{#if item.model?.info?.meta?.description}
 					<Tooltip
 						content={`${marked.parse(
@@ -231,14 +198,28 @@
 		</div>
 	</div>
 
-	<div class="ml-auto pl-2 pr-1 flex items-center gap-1.5 shrink-0">
+	<div class="ml-auto pl-2 pr-1 shrink-0 grid grid-cols-[1rem_1rem_1rem] items-center gap-1.5">
+		<Tooltip
+			content={isLocalModel(item.model)
+				? $i18n.t('Local model (runs on your machine)')
+				: $i18n.t('Cloud model')}
+		>
+			<div class="w-4 text-gray-500 dark:text-gray-400 flex items-center justify-center">
+				{#if isLocalModel(item.model)}
+					<Computer className="size-3.5" strokeWidth="1.5" />
+				{:else}
+					<Cloud className="size-3.5" strokeWidth="1.5" />
+				{/if}
+			</div>
+		</Tooltip>
+
 		{#if $user?.role === 'admin' && item.model.owned_by === 'ollama' && item.model.ollama?.expires_at && new Date(item.model.ollama?.expires_at * 1000) > new Date()}
 			<Tooltip
 				content={`${$i18n.t('Eject')}`}
-				className="flex-shrink-0 group-hover/item:opacity-100 opacity-0 "
+				className="flex-shrink-0 group-hover/item:opacity-100 opacity-0"
 			>
 				<button
-					class="flex"
+					class="flex items-center justify-center w-4 h-4"
 					aria-label={$i18n.t('Eject model')}
 					on:click={(e) => {
 						e.preventDefault();
@@ -249,6 +230,8 @@
 					<ArrowUpTray className="size-3" />
 				</button>
 			</Tooltip>
+		{:else}
+			<div class="w-4 h-4" aria-hidden="true" />
 		{/if}
 
 		<ModelItemMenu
@@ -261,7 +244,7 @@
 		>
 			<button
 				aria-label={`${$i18n.t('More Options')}`}
-				class="flex"
+				class="flex items-center justify-center w-4 h-4"
 				on:click={(e) => {
 					e.preventDefault();
 					e.stopPropagation();
@@ -271,11 +254,5 @@
 				<EllipsisHorizontal />
 			</button>
 		</ModelItemMenu>
-
-		{#if value === item.value}
-			<div>
-				<Check className="size-3" />
-			</div>
-		{/if}
 	</div>
 </button>

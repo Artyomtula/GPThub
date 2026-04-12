@@ -1632,6 +1632,99 @@ async def embeddings(request: Request, form_data: dict, user=Depends(get_verifie
     return await generate_embeddings(request, form_data, user)
 
 
+def _extract_requested_model_selection(form_data: dict) -> tuple[str, list[str]]:
+    """
+    Extract model selection intent from request payload.
+
+    Supported payload formats:
+    - legacy: model_selection_mode + model
+    - new: selection: { mode, model_ids }
+    """
+    selection = form_data.get('selection', {})
+    mode = None
+    model_ids: list[str] = []
+
+    if isinstance(selection, dict):
+        selection_mode = selection.get('mode')
+        if selection_mode in {'auto', 'manual'}:
+            mode = selection_mode
+
+        selection_model_ids = selection.get('model_ids')
+        if isinstance(selection_model_ids, list):
+            model_ids = [
+                model_id
+                for model_id in selection_model_ids
+                if isinstance(model_id, str) and model_id.strip()
+            ]
+
+    legacy_mode = form_data.get('model_selection_mode')
+    if mode is None and legacy_mode in {'auto', 'manual'}:
+        mode = legacy_mode
+
+    requested_model = form_data.get('model')
+    if isinstance(requested_model, str) and requested_model.strip():
+        # Keep request model first so explicit per-request override wins.
+        model_ids = [requested_model, *[model_id for model_id in model_ids if model_id != requested_model]]
+
+    return (mode or 'manual'), model_ids
+
+
+def _resolve_effective_model_selection(
+    mode: str, requested_model_ids: list[str], available_models: dict, user: Optional[UserModel] = None
+) -> dict:
+    def is_accessible(model_id: str) -> bool:
+        model = available_models.get(model_id)
+        if not model:
+            return False
+
+        if not BYPASS_MODEL_ACCESS_CONTROL and user and (user.role != 'admin' or not BYPASS_ADMIN_ACCESS_CONTROL):
+            try:
+                check_model_access(user, model)
+            except Exception:
+                return False
+
+        return True
+
+    available_model_ids = [model_id for model_id in available_models.keys() if is_accessible(model_id)]
+    non_arena_model_ids = [
+        model_id
+        for model_id, model in available_models.items()
+        if model.get('owned_by') != 'arena' and is_accessible(model_id)
+    ]
+
+    resolved_model_id = None
+    resolution_reason = 'manual_missing'
+
+    if mode == 'auto':
+        for requested_model_id in requested_model_ids:
+            candidate = available_models.get(requested_model_id)
+            if candidate and candidate.get('owned_by') != 'arena' and is_accessible(requested_model_id):
+                resolved_model_id = requested_model_id
+                resolution_reason = 'auto_requested'
+                break
+
+        if resolved_model_id is None and non_arena_model_ids:
+            resolved_model_id = non_arena_model_ids[0]
+            resolution_reason = 'auto_fallback_first_available'
+        elif resolved_model_id is None and available_model_ids:
+            resolved_model_id = available_model_ids[0]
+            resolution_reason = 'auto_fallback_first_available_any'
+    else:
+        for requested_model_id in requested_model_ids:
+            if requested_model_id in available_models and is_accessible(requested_model_id):
+                resolved_model_id = requested_model_id
+                resolution_reason = 'manual_requested'
+                break
+
+    return {
+        'mode': mode,
+        'requested_model_ids': requested_model_ids,
+        'resolved_model_id': resolved_model_id,
+        'effective_model_ids': [resolved_model_id] if resolved_model_id else [],
+        'resolution_reason': resolution_reason,
+    }
+
+
 @app.post('/api/chat/completions')
 @app.post('/api/v1/chat/completions')  # Experimental: Compatibility with OpenAI API
 async def chat_completion(
@@ -1645,6 +1738,46 @@ async def chat_completion(
     model_id = form_data.get('model', None)
     model_item = form_data.pop('model_item', {})
     tasks = form_data.pop('background_tasks', None)
+    selection_mode, requested_model_ids = _extract_requested_model_selection(form_data)
+    # Internal routing fields should not leak to provider payloads.
+    form_data.pop('selection', None)
+    form_data.pop('model_selection_mode', None)
+
+    if model_item.get('direct', False):
+        direct_model_id = form_data.get('model') or model_item.get('id')
+        normalized_requested_ids = requested_model_ids
+        if isinstance(direct_model_id, str) and direct_model_id:
+            normalized_requested_ids = [direct_model_id, *[m for m in requested_model_ids if m != direct_model_id]]
+        selection_effective = {
+            'mode': selection_mode,
+            'requested_model_ids': normalized_requested_ids,
+            'resolved_model_id': direct_model_id,
+            'effective_model_ids': [direct_model_id] if direct_model_id else [],
+            'resolution_reason': 'direct_requested',
+        }
+    else:
+        # Resolve the effective model on backend and use it as authoritative.
+        # Frontend can sync to this via `selection_effective`.
+        selection_effective = _resolve_effective_model_selection(
+            selection_mode,
+            requested_model_ids,
+            request.app.state.MODELS,
+            user,
+        )
+    resolved_model_id = selection_effective.get('resolved_model_id')
+    if resolved_model_id:
+        form_data['model'] = resolved_model_id
+        model_id = resolved_model_id
+    else:
+        if selection_mode == 'manual':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Selected model is unavailable.',
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='No available models for auto mode.',
+        )
 
     metadata = {}
     try:
@@ -1721,6 +1854,8 @@ async def chat_completion(
             'features': form_data.get('features', {}),
             'variables': form_data.get('variables', {}),
             'model': model,
+            'selection_effective': selection_effective,
+            'selected_model_id': selection_effective.get('resolved_model_id'),
             'direct': model_item.get('direct', False),
             'params': {
                 'stream_delta_chunk_size': stream_delta_chunk_size,
@@ -1782,6 +1917,12 @@ async def chat_completion(
             form_data, metadata, events = await process_chat_payload(request, form_data, user, metadata, model)
 
             response = await chat_completion_handler(request, form_data, user)
+            if isinstance(response, dict):
+                if metadata.get('selection_effective'):
+                    response['selection_effective'] = metadata['selection_effective']
+                resolved_model_id = metadata.get('selection_effective', {}).get('resolved_model_id')
+                if resolved_model_id:
+                    response['selected_model_id'] = resolved_model_id
             if metadata.get('chat_id') and metadata.get('message_id'):
                 try:
                     if not metadata['chat_id'].startswith('local:'):
@@ -1868,7 +2009,12 @@ async def chat_completion(
         event_emitter = get_event_emitter(metadata, update_db=False)
         if event_emitter:
             await event_emitter({'type': 'chat:active', 'data': {'active': True}})
-        return {'status': True, 'task_id': task_id}
+        response_payload = {'status': True, 'task_id': task_id}
+        if selection_effective:
+            response_payload['selection_effective'] = selection_effective
+            if selection_effective.get('resolved_model_id'):
+                response_payload['selected_model_id'] = selection_effective.get('resolved_model_id')
+        return response_payload
     else:
         return await process_chat(request, form_data, user, metadata, model)
 

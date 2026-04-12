@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { models, showSettings, settings, user, mobile, config } from '$lib/stores';
-	import { onMount, tick, getContext } from 'svelte';
+	import { models, settings, user } from '$lib/stores';
+	import { getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import Selector from './ModelSelector/Selector.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
@@ -10,6 +10,9 @@
 
 	export let selectedModels = [''];
 	export let disabled = false;
+	export let modelSelectionMode: 'auto' | 'manual' = 'auto';
+	let modeHydrated = false;
+	let modeSaveInFlight = false;
 
 	export let showSetDefault = true;
 
@@ -38,6 +41,36 @@
 		await updateUserSettings(localStorage.token, { ui: $settings });
 	};
 
+	$: if (!modeHydrated && $settings) {
+		const persistedMode = $settings?.modelSelectionMode;
+		if (persistedMode === 'auto' || persistedMode === 'manual') {
+			modelSelectionMode = persistedMode;
+		}
+		// Wait for user settings hydration before allowing writes.
+		// Empty object usually means settings are not loaded yet.
+		if (Object.keys($settings).length > 0 || persistedMode !== undefined) {
+			modeHydrated = true;
+		}
+	}
+
+	$: if (
+		modeHydrated &&
+		!modeSaveInFlight &&
+		$settings &&
+		($settings?.modelSelectionMode ?? 'auto') !== modelSelectionMode
+	) {
+		const nextSettings = { ...$settings, modelSelectionMode };
+		modeSaveInFlight = true;
+		settings.set(nextSettings);
+		updateUserSettings(localStorage.token, { ui: nextSettings })
+			.catch(() => {
+				toast.error($i18n.t('Failed to save model selection mode'));
+			})
+			.finally(() => {
+				modeSaveInFlight = false;
+			});
+	}
+
 	$: if (selectedModels.length > 0 && $models.length > 0) {
 		const _selectedModels = selectedModels.map((model) =>
 			$models.map((m) => m.id).includes(model) ? model : ''
@@ -57,6 +90,9 @@
 					<Selector
 						id={`${selectedModelIdx}`}
 						placeholder={$i18n.t('Select a model')}
+						searchEnabled={false}
+						showFilters={false}
+						showAutoMode={selectedModelIdx === 0}
 						items={$models.map((model) => ({
 							value: model.id,
 							label: model.name,
@@ -64,6 +100,7 @@
 						}))}
 						{pinModelHandler}
 						bind:value={selectedModel}
+						bind:mode={modelSelectionMode}
 					/>
 				</div>
 			</div>
