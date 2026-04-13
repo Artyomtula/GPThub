@@ -228,6 +228,148 @@ select {
 	color: #9a9a9a;
 }
 
+/* ── GPTHub: floating red gradient blobs ─────────────────────── */
+@keyframes blob-move-1 {
+	0%,
+	100% {
+		transform: translate(0, 0) scale(1);
+	}
+	25% {
+		transform: translate(8%, -10%) scale(1.1);
+	}
+	50% {
+		transform: translate(12%, 4%) scale(0.95);
+	}
+	75% {
+		transform: translate(-5%, 8%) scale(1.07);
+	}
+}
+@keyframes blob-move-2 {
+	0%,
+	100% {
+		transform: translate(0, 0) scale(1);
+	}
+	30% {
+		transform: translate(-10%, 8%) scale(1.08);
+	}
+	60% {
+		transform: translate(7%, -6%) scale(0.93);
+	}
+	80% {
+		transform: translate(-4%, -3%) scale(1.05);
+	}
+}
+@keyframes blob-move-3 {
+	0%,
+	100% {
+		transform: translate(0, 0) scale(1);
+	}
+	40% {
+		transform: translate(5%, 10%) scale(1.09);
+	}
+	70% {
+		transform: translate(-8%, -5%) scale(0.96);
+	}
+}
+@keyframes blob-move-4 {
+	0%,
+	100% {
+		transform: translate(0, 0) scale(1);
+	}
+	35% {
+		transform: translate(-6%, -8%) scale(1.12);
+	}
+	65% {
+		transform: translate(9%, 6%) scale(0.94);
+	}
+}
+
+.gpthub-gradient-bg {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	pointer-events: none;
+	overflow: hidden;
+	z-index: 0;
+}
+
+.gpthub-gradient-bg::before,
+.gpthub-gradient-bg::after,
+.gpthub-gradient-bg > span {
+	content: '';
+	position: absolute;
+	border-radius: 50%;
+	filter: blur(90px);
+	will-change: transform;
+	opacity: 0.22;
+}
+
+:global(.dark) .gpthub-gradient-bg::before,
+:global(.dark) .gpthub-gradient-bg::after,
+:global(.dark) .gpthub-gradient-bg > span {
+	opacity: 0.55;
+}
+
+.gpthub-gradient-bg::before {
+	width: min(60vw, 90%);
+	height: min(60vw, 90%);
+	top: -20%;
+	right: -10%;
+	background: radial-gradient(
+		circle,
+		oklch(0.5 0.28 18) 0%,
+		oklch(0.4 0.24 8) 45%,
+		transparent 72%
+	);
+	animation: blob-move-1 10s ease-in-out infinite;
+}
+
+.gpthub-gradient-bg::after {
+	width: min(50vw, 80%);
+	height: min(50vw, 80%);
+	bottom: -15%;
+	left: 0%;
+	background: radial-gradient(
+		circle,
+		oklch(0.46 0.27 10) 0%,
+		oklch(0.36 0.22 355) 45%,
+		transparent 72%
+	);
+	animation: blob-move-2 13s ease-in-out infinite;
+	content: '';
+	display: block;
+}
+
+.gpthub-gradient-bg > span {
+	width: min(40vw, 70%);
+	height: min(40vw, 70%);
+	top: 35%;
+	right: 15%;
+	background: radial-gradient(circle, oklch(0.55 0.25 22) 0%, transparent 68%);
+	animation: blob-move-3 8s ease-in-out infinite;
+}
+
+.gpthub-gradient-bg > i {
+	position: absolute;
+	border-radius: 50%;
+	filter: blur(90px);
+	will-change: transform;
+	width: min(35vw, 65%);
+	height: min(35vw, 65%);
+	bottom: 10%;
+	right: -5%;
+	background: radial-gradient(circle, oklch(0.43 0.28 5) 0%, transparent 68%);
+	animation: blob-move-4 11s ease-in-out infinite;
+	opacity: 0.22;
+}
+
+:global(.dark) .gpthub-gradient-bg > i {
+	opacity: 0.55;
+}
+/* ───────────────────────────────────────────────────────────── */
+
 @keyframes smoothFadeIn {
 	0% {
 		opacity: 0;

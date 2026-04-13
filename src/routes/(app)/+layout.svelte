@@ -8,6 +8,8 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { fade } from 'svelte/transition';
+	import { tweened } from 'svelte/motion';
+	import { cubicOut } from 'svelte/easing';
 
 	import { getModels, getToolServersData, getVersionUpdates } from '$lib/apis';
 	import { getTools } from '$lib/apis/tools';
@@ -38,7 +40,8 @@
 		showSearch,
 		showSidebar,
 		showControls,
-		mobile
+		mobile,
+		sidebarWidth
 	} from '$lib/stores';
 
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
@@ -53,6 +56,9 @@
 
 	let loaded = false;
 	let DB = null;
+
+	const gradientLeft = tweened(0, { duration: 320, easing: cubicOut });
+	$: gradientLeft.set($showSidebar && !$mobile ? $sidebarWidth : 0);
 	let localDBChats = [];
 
 	let version;
@@ -455,6 +461,16 @@
 				{/if}
 
 				<Sidebar />
+
+				{#if $page.url.pathname === '/'}
+					<div
+						class="gpthub-gradient-bg"
+						style="left: {$gradientLeft}px"
+						transition:fade={{ duration: 700 }}
+					>
+						<span></span><i></i>
+					</div>
+				{/if}
 
 				{#if loaded}
 					<slot />

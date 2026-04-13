@@ -538,7 +538,7 @@
 													<div class="line-clamp-1">{$i18n.t('Auto Mode')}</div>
 													<Tooltip
 														content={$i18n.t(
-															'Open WebUI automatically chooses the best model for your request.'
+															'GPThub automatically chooses the best model for your request.'
 														)}
 														placement="top-start"
 													>

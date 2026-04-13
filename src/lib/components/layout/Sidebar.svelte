@@ -64,7 +64,8 @@
 	import Sidebar from '../icons/Sidebar.svelte';
 	import PinnedModelList from './Sidebar/PinnedModelList.svelte';
 	import Note from '../icons/Note.svelte';
-	import { slide } from 'svelte/transition';
+	import { fly } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
 	import HotkeyHint from '../common/HotkeyHint.svelte';
 
 	const BREAKPOINT = 768;
@@ -428,8 +429,11 @@
 		} catch {}
 
 		document.documentElement.style.setProperty('--sidebar-width', `${$sidebarWidth}px`);
+
 		sidebarWidth.subscribe((w) => {
-			document.documentElement.style.setProperty('--sidebar-width', `${w}px`);
+			if ($showSidebar && !$mobile) {
+				document.documentElement.style.setProperty('--sidebar-width', `${w}px`);
+			}
 		});
 
 		showSidebar.set(!$mobile ? localStorage.sidebar === 'true' : false);
@@ -449,6 +453,13 @@
 			}),
 			showSidebar.subscribe(async (value) => {
 				localStorage.sidebar = value;
+
+				if (!$mobile) {
+					document.documentElement.style.setProperty(
+						'--sidebar-width',
+						value ? `${$sidebarWidth}px` : '0px'
+					);
+				}
 
 				// nav element is not available on the first render
 				const navElement = document.getElementsByTagName('nav')[0];
@@ -889,7 +900,8 @@
 			? `ml-[4.5rem] md:ml-0 `
 			: ' transition-all duration-300 '} shrink-0 text-gray-900 dark:text-gray-200 text-sm fixed top-0 left-0 overflow-x-hidden
         "
-		transition:slide={{ duration: 250, axis: 'x' }}
+		in:fly={{ x: -$sidebarWidth, duration: 320, easing: cubicOut }}
+		out:fly={{ x: -$sidebarWidth, duration: 320, easing: cubicOut }}
 		data-state={$showSidebar}
 	>
 		<div

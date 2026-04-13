@@ -168,7 +168,7 @@
 							<div
 								class="mt-0.5 px-2 text-sm font-normal text-gray-500 dark:text-gray-400 line-clamp-2 max-w-xl"
 							>
-								{$i18n.t('Open WebUI automatically chooses the best model for your request.')}
+								{$i18n.t('GPThub automatically chooses the best model for your request.')}
 							</div>
 						{:else if models[selectedModelIdx]?.info?.meta?.description ?? null}
 							<Tooltip
