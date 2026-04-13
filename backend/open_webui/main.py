@@ -17,7 +17,7 @@ from urllib.parse import urlencode, parse_qs, urlparse
 from pydantic import BaseModel
 from sqlalchemy import text
 
-from typing import Optional
+from typing import Any, Optional
 from aiocache import cached
 import aiohttp
 import anyio.to_thread
@@ -518,6 +518,14 @@ from open_webui.utils.models import (
     get_all_base_models,
     check_model_access,
     get_filtered_models,
+)
+from open_webui.utils.gpthub_models import (
+    build_capability_graph,
+    get_virtual_capability,
+    infer_model_capabilities,
+    infer_request_capability,
+    is_virtual_model,
+    is_virtual_model_id,
 )
 from open_webui.utils.chat import (
     generate_chat_completion as chat_completion_handler,
@@ -1669,13 +1677,193 @@ def _extract_requested_model_selection(form_data: dict) -> tuple[str, list[str]]
     return (mode or 'manual'), model_ids
 
 
-def _resolve_effective_model_selection(
-    mode: str, requested_model_ids: list[str], available_models: dict, user: Optional[UserModel] = None
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except Exception:
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except Exception:
+        return default
+
+
+def _extract_last_user_prompt(form_data: dict) -> str:
+    messages = form_data.get('messages')
+    if not isinstance(messages, list):
+        return ''
+
+    for message in reversed(messages):
+        if not isinstance(message, dict) or message.get('role') != 'user':
+            continue
+
+        content = message.get('content')
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            parts: list[str] = []
+            image_count = 0
+            for part in content:
+                if not isinstance(part, dict):
+                    continue
+                if part.get('type') in {'text', 'input_text'} and isinstance(part.get('text'), str):
+                    parts.append(part.get('text', ''))
+                if part.get('type') == 'image_url':
+                    image_count += 1
+
+            text = ' '.join(parts).strip()
+            if image_count > 0:
+                if text:
+                    return f'{text} [user_attached_images={image_count}]'
+                return f'user_attached_images={image_count}'
+            return text
+
+    return ''
+
+
+def _select_router_model_id(
+    available_models: dict,
+    accessible_model_ids: list[str],
+) -> str | None:
+    configured_router_model_id = os.getenv('GPTHUB_ROUTER_MODEL_ID', '').strip()
+    if configured_router_model_id and configured_router_model_id in accessible_model_ids:
+        model = available_models.get(configured_router_model_id)
+        if model and not is_virtual_model(model) and model.get('owned_by') != 'arena':
+            return configured_router_model_id
+
+    preferred_patterns = (
+        'mws-gpt-alpha',
+        'qwen3-coder',
+        'qwen2.5-72b',
+        'deepseek',
+        'gpt-oss',
+        'llama',
+    )
+
+    for pattern in preferred_patterns:
+        for model_id in accessible_model_ids:
+            if pattern in model_id.lower():
+                model = available_models.get(model_id)
+                if model and not is_virtual_model(model) and model.get('owned_by') != 'arena':
+                    return model_id
+
+    return accessible_model_ids[0] if accessible_model_ids else None
+
+
+def _extract_router_json(text: str) -> dict[str, Any] | None:
+    if not isinstance(text, str) or not text.strip():
+        return None
+
+    stripped = text.strip()
+    candidates = [stripped]
+
+    fenced_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', stripped, flags=re.DOTALL)
+    if fenced_match:
+        candidates.insert(0, fenced_match.group(1))
+
+    brace_start = stripped.find('{')
+    brace_end = stripped.rfind('}')
+    if brace_start >= 0 and brace_end > brace_start:
+        candidates.insert(0, stripped[brace_start : brace_end + 1])
+
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            continue
+
+    return None
+
+
+def _extract_router_output_text(response: Any) -> str:
+    if not isinstance(response, dict):
+        return ''
+
+    choices = response.get('choices')
+    if isinstance(choices, list) and choices:
+        first_choice = choices[0] if isinstance(choices[0], dict) else {}
+        message = first_choice.get('message', {}) if isinstance(first_choice, dict) else {}
+        content = message.get('content') if isinstance(message, dict) else None
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            texts: list[str] = []
+            for part in content:
+                if isinstance(part, dict) and isinstance(part.get('text'), str):
+                    texts.append(part['text'])
+            return '\n'.join(texts)
+
+    output = response.get('output')
+    if isinstance(output, list):
+        texts: list[str] = []
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            content = item.get('content')
+            if isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and isinstance(part.get('text'), str):
+                        texts.append(part['text'])
+        if texts:
+            return '\n'.join(texts)
+
+    return ''
+
+
+def _pick_first_available_model_for_capability(
+    capability_graph: dict[str, list[str]],
+    capability: str,
+) -> str | None:
+    fallbacks: list[str] = []
+    if capability == 'auto':
+        fallbacks = ['text', 'code', 'vision', 'image_generation']
+    elif capability == 'code':
+        fallbacks = ['code', 'text']
+    elif capability == 'vision':
+        fallbacks = ['vision', 'text']
+    elif capability == 'image_generation':
+        fallbacks = ['image_generation']
+    elif capability == 'audio_transcription':
+        fallbacks = ['audio_transcription', 'text']
+    elif capability == 'audio_speech':
+        fallbacks = ['audio_speech', 'text']
+    else:
+        fallbacks = [capability, 'text', 'code', 'vision']
+
+    for candidate_capability in fallbacks:
+        model_ids = capability_graph.get(candidate_capability, [])
+        if model_ids:
+            return model_ids[0]
+
+    return None
+
+
+async def _resolve_effective_model_selection(
+    request: Request,
+    form_data: dict,
+    mode: str,
+    requested_model_ids: list[str],
+    available_models: dict,
+    user: Optional[UserModel] = None,
 ) -> dict:
     def is_accessible(model_id: str) -> bool:
         model = available_models.get(model_id)
         if not model:
             return False
+        if is_virtual_model(model):
+            return True
 
         if not BYPASS_MODEL_ACCESS_CONTROL and user and (user.role != 'admin' or not BYPASS_ADMIN_ACCESS_CONTROL):
             try:
@@ -1689,39 +1877,173 @@ def _resolve_effective_model_selection(
     non_arena_model_ids = [
         model_id
         for model_id, model in available_models.items()
-        if model.get('owned_by') != 'arena' and is_accessible(model_id)
+        if model.get('owned_by') != 'arena' and not is_virtual_model(model) and is_accessible(model_id)
     ]
+    capability_graph = build_capability_graph(available_models, non_arena_model_ids)
+    last_user_prompt = _extract_last_user_prompt(form_data)
 
     resolved_model_id = None
     resolution_reason = 'manual_missing'
+    display_model_id = None
+    resolved_capability = None
+    router_model_id = None
 
-    if mode == 'auto':
+    requested_virtual_model_id = None
+    requested_virtual_capability = None
+    for requested_model_id in requested_model_ids:
+        model = available_models.get(requested_model_id)
+        if model and is_virtual_model(model):
+            requested_virtual_model_id = requested_model_id
+            requested_virtual_capability = get_virtual_capability(model, requested_model_id)
+            break
+
+    if mode == 'manual':
+        # Explicit real model in manual mode always wins.
         for requested_model_id in requested_model_ids:
             candidate = available_models.get(requested_model_id)
-            if candidate and candidate.get('owned_by') != 'arena' and is_accessible(requested_model_id):
+            if not candidate or is_virtual_model(candidate) or candidate.get('owned_by') == 'arena':
+                continue
+            if is_accessible(requested_model_id):
                 resolved_model_id = requested_model_id
-                resolution_reason = 'auto_requested'
-                break
-
-        if resolved_model_id is None and non_arena_model_ids:
-            resolved_model_id = non_arena_model_ids[0]
-            resolution_reason = 'auto_fallback_first_available'
-        elif resolved_model_id is None and available_model_ids:
-            resolved_model_id = available_model_ids[0]
-            resolution_reason = 'auto_fallback_first_available_any'
-    else:
-        for requested_model_id in requested_model_ids:
-            if requested_model_id in available_models and is_accessible(requested_model_id):
-                resolved_model_id = requested_model_id
+                display_model_id = requested_model_id
+                resolved_capability = 'manual'
                 resolution_reason = 'manual_requested'
                 break
+
+    requested_capability = requested_virtual_capability or ('auto' if mode == 'auto' else None)
+    should_route_with_model = requested_capability == 'auto' and _env_bool('GPTHUB_ROUTER_ENABLED', True)
+
+    if resolved_model_id is None and requested_capability:
+        if should_route_with_model:
+            router_model_id = _select_router_model_id(available_models, non_arena_model_ids)
+
+            if router_model_id:
+                # Build a flat catalogue of all available models with their
+                # capabilities so the router can pick the best one directly.
+                max_candidates = _env_int('GPTHUB_ROUTER_MAX_CANDIDATES', 16)
+                model_catalogue = []
+                for model_id in non_arena_model_ids[:max_candidates]:
+                    if model_id == router_model_id:
+                        continue
+                    model = available_models.get(model_id, {})
+                    caps = sorted(infer_model_capabilities(model))
+                    model_catalogue.append({
+                        'id': model_id,
+                        'name': model.get('name') or model_id,
+                        'capabilities': caps,
+                    })
+
+                router_input = {
+                    'user_request': last_user_prompt,
+                    'available_models': model_catalogue,
+                }
+                router_messages = [
+                    {
+                        'role': 'system',
+                        'content': (
+                            'You are a model router. Given a user request and a list of available models, '
+                            'choose the single best model to handle that request. '
+                            'Consider each model\'s capabilities carefully. '
+                            'You MUST return ONLY a JSON object with two fields: '
+                            '"model_id" (exact id string from the list) and "reason" (one sentence). '
+                            'Example: {"model_id": "gpt-4o", "reason": "Best for text tasks."}'
+                        ),
+                    },
+                    {
+                        'role': 'user',
+                        'content': json.dumps(router_input, ensure_ascii=False),
+                    },
+                ]
+
+                try:
+                    router_response = await chat_completion_handler(
+                        request,
+                        {
+                            'model': router_model_id,
+                            'messages': router_messages,
+                            'stream': False,
+                            'temperature': _env_float('GPTHUB_ROUTER_TEMPERATURE', 0.0),
+                            'max_tokens': _env_int('GPTHUB_ROUTER_MAX_TOKENS', 180),
+                        },
+                        user,
+                        bypass_filter=True,
+                        bypass_system_prompt=True,
+                    )
+
+                    router_text = _extract_router_output_text(router_response)
+                    router_json = _extract_router_json(router_text)
+                    if router_json:
+                        candidate_model_id = router_json.get('model_id')
+
+                        if (
+                            isinstance(candidate_model_id, str)
+                            and candidate_model_id in non_arena_model_ids
+                            and not is_virtual_model_id(candidate_model_id)
+                        ):
+                            resolved_model_id = candidate_model_id
+                            resolved_capability = infer_request_capability(last_user_prompt)
+                            resolution_reason = 'router_model_choice'
+                except Exception as e:
+                    log.debug(f'Router model selection failed: {e}')
+
+            if resolved_model_id is None:
+                resolved_capability = infer_request_capability(last_user_prompt)
+                resolved_model_id = _pick_first_available_model_for_capability(capability_graph, resolved_capability)
+                resolution_reason = 'router_heuristic_fallback'
+        else:
+            resolved_capability = requested_capability
+            resolved_model_id = _pick_first_available_model_for_capability(capability_graph, requested_capability)
+            resolution_reason = (
+                'manual_virtual_capability'
+                if mode == 'manual'
+                else 'auto_capability_without_router'
+            )
+
+        if requested_virtual_model_id and resolved_model_id:
+            display_model_id = requested_virtual_model_id
+
+    if resolved_model_id is None and mode == 'auto':
+        if non_arena_model_ids:
+            resolved_model_id = non_arena_model_ids[0]
+            resolved_capability = resolved_capability or 'text'
+            resolution_reason = 'auto_fallback_first_available'
+        elif available_model_ids:
+            resolved_model_id = available_model_ids[0]
+            resolved_capability = resolved_capability or 'text'
+            resolution_reason = 'auto_fallback_first_available_any'
+
+    if resolved_model_id is None and mode == 'manual':
+        # Manual fallback is intentionally strict: if the requested model
+        # cannot be resolved, frontend should receive an explicit error.
+        pass
+
+    # image_generation capability: the actual image is created via the env-configured
+    # IMAGE_GENERATION_MODEL inside chat_image_generation_handler, which does NOT use
+    # form_data['model']. After image creation, the pipeline continues with the LLM to
+    # generate the follow-up text ("Here's your image!"). That LLM call uses
+    # form_data['model'], so resolved_model_id MUST be a text-capable model.
+    # We reroute to the best available text model while keeping resolved_capability so
+    # main.py can still force features['image_generation'] = True.
+    if resolved_capability == 'image_generation':
+        text_model_id = _pick_first_available_model_for_capability(capability_graph, 'text')
+        if text_model_id:
+            resolved_model_id = text_model_id
+            resolution_reason = f'{resolution_reason}|text_override_for_followup'
+
+    if display_model_id is None and resolved_model_id:
+        display_model_id = resolved_model_id
 
     return {
         'mode': mode,
         'requested_model_ids': requested_model_ids,
         'resolved_model_id': resolved_model_id,
+        'display_model_id': display_model_id,
         'effective_model_ids': [resolved_model_id] if resolved_model_id else [],
+        'resolved_capability': resolved_capability,
+        'requested_virtual_model_id': requested_virtual_model_id,
+        'router_model_id': router_model_id,
         'resolution_reason': resolution_reason,
+        'capability_graph': capability_graph,
     }
 
 
@@ -1752,13 +2074,17 @@ async def chat_completion(
             'mode': selection_mode,
             'requested_model_ids': normalized_requested_ids,
             'resolved_model_id': direct_model_id,
+            'display_model_id': direct_model_id,
             'effective_model_ids': [direct_model_id] if direct_model_id else [],
+            'resolved_capability': 'direct',
             'resolution_reason': 'direct_requested',
         }
     else:
         # Resolve the effective model on backend and use it as authoritative.
         # Frontend can sync to this via `selection_effective`.
-        selection_effective = _resolve_effective_model_selection(
+        selection_effective = await _resolve_effective_model_selection(
+            request,
+            form_data,
             selection_mode,
             requested_model_ids,
             request.app.state.MODELS,
@@ -1768,6 +2094,14 @@ async def chat_completion(
     if resolved_model_id:
         form_data['model'] = resolved_model_id
         model_id = resolved_model_id
+
+        # When the router resolves to an image model, force the image_generation
+        # feature on so chat_image_generation_handler is invoked in middleware.
+        # The frontend cannot know this in advance (it sees a virtual/text model).
+        if selection_effective.get('resolved_capability') == 'image_generation':
+            features = form_data.setdefault('features', {})
+            if not features.get('image_generation'):
+                features['image_generation'] = True
     else:
         if selection_mode == 'manual':
             raise HTTPException(

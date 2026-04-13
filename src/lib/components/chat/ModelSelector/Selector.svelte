@@ -387,9 +387,21 @@
 	let listScrollTop = 0;
 	let listContainer;
 
+	// Split filtered items: virtual GPTHub agents vs real models.
+	// gpthub:auto is already represented by the Auto Mode button above.
+	$: agentItems = filteredItems.filter(
+		(item) =>
+			typeof item.value === 'string' &&
+			item.value.startsWith('gpthub:') &&
+			item.value !== 'gpthub:auto'
+	);
+	$: regularItems = filteredItems.filter(
+		(item) => !(typeof item.value === 'string' && item.value.startsWith('gpthub:'))
+	);
+
 	$: visibleStart = Math.max(0, Math.floor(listScrollTop / ITEM_HEIGHT) - OVERSCAN);
 	$: visibleEnd = Math.min(
-		filteredItems.length,
+		regularItems.length,
 		Math.ceil((listScrollTop + 256) / ITEM_HEIGHT) + OVERSCAN
 	);
 </script>
@@ -692,9 +704,35 @@
 												listScrollTop = listContainer.scrollTop;
 											}}
 										>
+											<!-- GPTHub virtual agents (always few, no virtual scroll) -->
+											{#each agentItems as item, i (item.value)}
+												<ModelItem
+													{selectedModelIdx}
+													{item}
+													index={i}
+													{value}
+													selectionEnabled={!(showAutoMode && mode === 'auto')}
+													inactive={showAutoMode && mode === 'auto'}
+													{pinModelHandler}
+													{unloadModelHandler}
+													onClick={() => {
+														mode = 'manual';
+														value = item.value;
+														selectedModelIdx = i;
+														show = false;
+													}}
+												/>
+											{/each}
+
+											<!-- Divider between agents and regular models -->
+											{#if agentItems.length > 0 && regularItems.length > 0}
+												<div class="mx-3 my-1 h-px bg-gray-100 dark:bg-gray-800/80"></div>
+											{/if}
+
+											<!-- Regular models with virtual scroll -->
 											<div style="height: {visibleStart * ITEM_HEIGHT}px;" />
-											{#each filteredItems.slice(visibleStart, visibleEnd) as item, i (item.value)}
-												{@const index = visibleStart + i}
+											{#each regularItems.slice(visibleStart, visibleEnd) as item, i (item.value)}
+												{@const index = agentItems.length + visibleStart + i}
 												<ModelItem
 													{selectedModelIdx}
 													{item}
@@ -708,12 +746,11 @@
 														mode = 'manual';
 														value = item.value;
 														selectedModelIdx = index;
-
 														show = false;
 													}}
 												/>
 											{/each}
-											<div style="height: {(filteredItems.length - visibleEnd) * ITEM_HEIGHT}px;" />
+											<div style="height: {(regularItems.length - visibleEnd) * ITEM_HEIGHT}px;" />
 										</div>
 									{/if}
 
