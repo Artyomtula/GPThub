@@ -1,0 +1,57 @@
+services:
+  open-webui:
+    build:
+      context: .
+      args:
+        USE_OLLAMA: 'false'
+        USE_CUDA: 'false'
+        USE_SLIM: 'true'
+    image: artyomtula1/open-webui:latest
+    container_name: gpthub-open-webui
+    ports:
+      - '3000:8080'
+    volumes:
+      - gpthub-data:/app/backend/data
+    restart: unless-stopped
+    environment:
+      # ── MWS API ─────────────────────────────
+      - ENABLE_OPENAI_API=true
+      - OPENAI_API_BASE_URLS=https://api.gpt.mws.ru/v1
+      - OPENAI_API_KEYS=${MWS_API_KEY}
+      # ── Default model ────────────────────────
+      - DEFAULT_MODELS=mts-anya
+      - TASK_MODEL=mts-anya
+      - TASK_MODEL_EXTERNAL=mts-anya
+      # ── Image generation ─────────────────────
+      - ENABLE_IMAGE_GENERATION=true
+      - IMAGE_GENERATION_ENGINE=openai
+      - IMAGE_GENERATION_MODEL=qwen-image
+      - ENABLE_IMAGE_PROMPT_GENERATION=false
+      - IMAGES_OPENAI_API_BASE_URL=https://api.gpt.mws.ru/v1
+      - IMAGES_OPENAI_API_KEY=${MWS_API_KEY}
+      # ── Speech to text ───────────────────────
+      - AUDIO_STT_ENGINE=openai
+      - AUDIO_STT_MODEL=whisper-turbo-local-preview
+      - AUDIO_STT_OPENAI_API_BASE_URL=https://api.gpt.mws.ru/v1
+      - AUDIO_STT_OPENAI_API_KEY=${MWS_API_KEY}
+      # ── RAG embeddings ───────────────────────
+      - RAG_EMBEDDING_ENGINE=openai
+      - RAG_EMBEDDING_MODEL=bge-m3
+      - RAG_OPENAI_API_BASE_URL=https://api.gpt.mws.ru/v1
+      - RAG_OPENAI_API_KEY=${MWS_API_KEY}
+      # ── GPTHub virtual models & router ───────
+      - GPTHUB_ENABLE_VIRTUAL_MODELS=true
+      - GPTHUB_ROUTER_ENABLED=true
+      - GPTHUB_ROUTER_MAX_CANDIDATES=16
+      - GPTHUB_ROUTER_TEMPERATURE=0
+      - GPTHUB_ROUTER_MAX_TOKENS=180
+      # ── Misc ─────────────────────────────────
+      - ENABLE_OLLAMA_API=false
+      - RESET_CONFIG_ON_START=true
+      - CORS_ALLOW_ORIGIN=*
+      - FORWARDED_ALLOW_IPS=*
+      - SCARF_NO_ANALYTICS=true
+      - WEBUI_SECRET_KEY=gpthub-judge-secret
+
+volumes:
+  gpthub-data: {}
