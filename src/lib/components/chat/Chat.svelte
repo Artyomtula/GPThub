@@ -1948,8 +1948,10 @@
 				? [atSelectedModel.id]
 				: selectedModels;
 
-		// Auto mode is a single backend-routed request; do not fan out across multiple models.
-		if (!modelId && modelSelectionMode === 'auto') {
+		// GPTHub contest UX: always use a single active chat model.
+		// Even if UI contains extra selected models, we avoid fan-out requests
+		// to prevent mixed responses (e.g., text model + image-only model in one turn).
+		if (!modelId) {
 			selectedModelIds = selectedModelIds.slice(0, 1);
 		}
 

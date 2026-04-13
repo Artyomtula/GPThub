@@ -8,6 +8,33 @@
 - Node.js `18-22` и npm
 - Python `3.11` или `3.12` (Python `3.13` не поддерживается)
 - Docker + Docker Compose (для production)
+- API-ключ MWS GPT (для облачных моделей)
+
+## MWS GPT подключение (сделано)
+
+Проект уже сконфигурирован под MWS OpenAI-compatible API через `.env`.
+
+1. Открой `.env` и вставь ключ:
+
+```bash
+OPENAI_API_KEYS='YOUR_MWS_KEY'
+IMAGES_OPENAI_API_KEY='YOUR_MWS_KEY'
+AUDIO_STT_OPENAI_API_KEY='YOUR_MWS_KEY'
+RAG_OPENAI_API_KEY='YOUR_MWS_KEY'
+```
+
+2. Если нужен внешний endpoint MWS, переключи:
+
+```bash
+OPENAI_API_BASE_URLS='https://api.gpt.mws.ru/v1'
+IMAGES_OPENAI_API_BASE_URL='https://api.gpt.mws.ru/v1'
+AUDIO_STT_OPENAI_API_BASE_URL='https://api.gpt.mws.ru/v1'
+RAG_OPENAI_API_BASE_URL='https://api.gpt.mws.ru/v1'
+```
+
+По умолчанию в `.env.example` стоит внешний endpoint:
+`https://api.gpt.mws.ru/v1`.
+Для внутреннего контура можно использовать `https://api.llmops.mts-corp.ru/v1`.
 
 ## Development
 
@@ -62,6 +89,7 @@ docker compose up -d --build
 По умолчанию:
 - Open WebUI: `http://localhost:3000`
 - Ollama (внутри compose сети)
+- MWS-модели подтягиваются из `.env` (текст, image generation, ASR, embeddings)
 
 Остановить:
 

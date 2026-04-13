@@ -1776,14 +1776,19 @@ async def chat_image_generation_handler(request: Request, form_data: dict, extra
         # Create image(s)
         if request.app.state.config.ENABLE_IMAGE_PROMPT_GENERATION:
             try:
-                res = await generate_image_prompt(
-                    request,
-                    {
-                        'model': form_data['model'],
-                        'messages': form_data['messages'],
-                        'chat_id': metadata.get('chat_id'),
-                    },
-                    user,
+                # Limit prompt-refinement step so image generation cannot hang indefinitely.
+                # If this times out, we fallback to the original user prompt.
+                res = await asyncio.wait_for(
+                    generate_image_prompt(
+                        request,
+                        {
+                            'model': form_data['model'],
+                            'messages': form_data['messages'],
+                            'chat_id': metadata.get('chat_id'),
+                        },
+                        user,
+                    ),
+                    timeout=30,
                 )
 
                 response = res['choices'][0]['message']['content']
@@ -1801,6 +1806,9 @@ async def chat_image_generation_handler(request: Request, form_data: dict, extra
                 except Exception as e:
                     prompt = user_message
 
+            except asyncio.TimeoutError:
+                log.warning('Image prompt generation timed out, falling back to user prompt')
+                prompt = user_message
             except Exception as e:
                 log.exception(e)
                 prompt = user_message
@@ -2895,16 +2903,24 @@ async def background_tasks_handler(ctx):
     if message and 'model' in message:
         if tasks and messages:
             if TASKS.FOLLOW_UP_GENERATION in tasks and tasks[TASKS.FOLLOW_UP_GENERATION]:
-                res = await generate_follow_ups(
-                    request,
-                    {
-                        'model': message['model'],
-                        'messages': messages,
-                        'message_id': metadata['message_id'],
-                        'chat_id': metadata['chat_id'],
-                    },
-                    user,
-                )
+                res = None
+                try:
+                    res = await generate_follow_ups(
+                        request,
+                        {
+                            'model': message['model'],
+                            'messages': messages,
+                            'message_id': metadata['message_id'],
+                            'chat_id': metadata['chat_id'],
+                        },
+                        user,
+                    )
+                except Exception as e:
+                    log.warning(
+                        'Background follow-up generation failed for model %s: %s',
+                        message.get('model'),
+                        e,
+                    )
 
                 if res and isinstance(res, dict):
                     if len(res.get('choices', [])) == 1:
@@ -2951,15 +2967,23 @@ async def background_tasks_handler(ctx):
 
                     title = None
                     if tasks[TASKS.TITLE_GENERATION]:
-                        res = await generate_title(
-                            request,
-                            {
-                                'model': message['model'],
-                                'messages': messages,
-                                'chat_id': metadata['chat_id'],
-                            },
-                            user,
-                        )
+                        res = None
+                        try:
+                            res = await generate_title(
+                                request,
+                                {
+                                    'model': message['model'],
+                                    'messages': messages,
+                                    'chat_id': metadata['chat_id'],
+                                },
+                                user,
+                            )
+                        except Exception as e:
+                            log.warning(
+                                'Background title generation failed for model %s: %s',
+                                message.get('model'),
+                                e,
+                            )
 
                         if res and isinstance(res, dict):
                             if len(res.get('choices', [])) == 1:
@@ -3007,15 +3031,23 @@ async def background_tasks_handler(ctx):
                         )
 
                 if TASKS.TAGS_GENERATION in tasks and tasks[TASKS.TAGS_GENERATION]:
-                    res = await generate_chat_tags(
-                        request,
-                        {
-                            'model': message['model'],
-                            'messages': messages,
-                            'chat_id': metadata['chat_id'],
-                        },
-                        user,
-                    )
+                    res = None
+                    try:
+                        res = await generate_chat_tags(
+                            request,
+                            {
+                                'model': message['model'],
+                                'messages': messages,
+                                'chat_id': metadata['chat_id'],
+                            },
+                            user,
+                        )
+                    except Exception as e:
+                        log.warning(
+                            'Background tags generation failed for model %s: %s',
+                            message.get('model'),
+                            e,
+                        )
 
                     if res and isinstance(res, dict):
                         if len(res.get('choices', [])) == 1:
@@ -3169,7 +3201,10 @@ async def non_streaming_chat_response_handler(response, ctx):
                                 },
                             )
 
-                    await background_tasks_handler(ctx)
+                    try:
+                        await background_tasks_handler(ctx)
+                    except Exception as e:
+                        log.warning(f'Background tasks failed: {e}')
 
             response = build_response_object(response, merge_events_into_response(response_data, events))
         except Exception as e:
@@ -4665,7 +4700,10 @@ async def streaming_chat_response_handler(response, ctx):
                     }
                 )
 
-                await background_tasks_handler(ctx)
+                try:
+                    await background_tasks_handler(ctx)
+                except Exception as e:
+                    log.warning(f'Background tasks failed: {e}')
             except asyncio.CancelledError:
                 log.warning('Task was cancelled!')
                 await event_emitter({'type': 'chat:tasks:cancel'})
