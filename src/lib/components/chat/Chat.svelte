@@ -2107,6 +2107,7 @@
 		selectionEffective: {
 			mode?: 'auto' | 'manual';
 			resolved_model_id?: string;
+			display_model_id?: string;
 		},
 		responseMessageId?: string
 	) => {
@@ -2129,8 +2130,14 @@
 			return;
 		}
 
-		// Backend is authoritative for the effective model in both modes.
-		selectedModels = [resolvedModelId];
+		const displayModelId =
+			typeof selectionEffective.display_model_id === 'string' &&
+			selectionEffective.display_model_id.length > 0
+				? selectionEffective.display_model_id
+				: resolvedModelId;
+
+		const displayModel = $models.find((m) => m.id === displayModelId);
+		selectedModels = [displayModel ? displayModel.id : resolvedModelId];
 
 		if (responseMessageId && history.messages?.[responseMessageId]) {
 			history.messages[responseMessageId] = {
