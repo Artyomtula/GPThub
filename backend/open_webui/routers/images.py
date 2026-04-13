@@ -6,6 +6,7 @@ import json
 import logging
 import mimetypes
 import re
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -41,6 +42,7 @@ from open_webui.utils.images.comfyui import (
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
+IMAGE_HTTP_TIMEOUT_SEC = float(os.getenv('IMAGE_HTTP_TIMEOUT_SEC', '120'))
 
 # An image can lie as easily as it can illuminate. Let what
 # is generated here be honest about what it shows.
@@ -60,6 +62,7 @@ def set_image_model(request: Request, model: str):
             r = requests.get(
                 url=f'{request.app.state.config.AUTOMATIC1111_BASE_URL}/sdapi/v1/options',
                 headers={'authorization': api_auth},
+                timeout=IMAGE_HTTP_TIMEOUT_SEC,
             )
             options = r.json()
             if model != options['sd_model_checkpoint']:
@@ -68,6 +71,7 @@ def set_image_model(request: Request, model: str):
                     url=f'{request.app.state.config.AUTOMATIC1111_BASE_URL}/sdapi/v1/options',
                     json=options,
                     headers={'authorization': api_auth},
+                    timeout=IMAGE_HTTP_TIMEOUT_SEC,
                 )
         except Exception as e:
             log.debug(f'{e}')
@@ -100,6 +104,7 @@ def get_image_model(request):
             r = requests.get(
                 url=f'{request.app.state.config.AUTOMATIC1111_BASE_URL}/sdapi/v1/options',
                 headers={'authorization': get_automatic1111_api_auth(request)},
+                timeout=IMAGE_HTTP_TIMEOUT_SEC,
             )
             options = r.json()
             return options['sd_model_checkpoint']
@@ -316,6 +321,7 @@ async def verify_url(request: Request, user=Depends(get_admin_user)):
             r = requests.get(
                 url=f'{request.app.state.config.AUTOMATIC1111_BASE_URL}/sdapi/v1/options',
                 headers={'authorization': get_automatic1111_api_auth(request)},
+                timeout=IMAGE_HTTP_TIMEOUT_SEC,
             )
             r.raise_for_status()
             return True
@@ -330,6 +336,7 @@ async def verify_url(request: Request, user=Depends(get_admin_user)):
             r = requests.get(
                 url=f'{request.app.state.config.COMFYUI_BASE_URL}/object_info',
                 headers=headers,
+                timeout=IMAGE_HTTP_TIMEOUT_SEC,
             )
             r.raise_for_status()
             return True
@@ -360,6 +367,7 @@ def get_models(request: Request, user=Depends(get_verified_user)):
             r = requests.get(
                 url=f'{request.app.state.config.COMFYUI_BASE_URL}/object_info',
                 headers=headers,
+                timeout=IMAGE_HTTP_TIMEOUT_SEC,
             )
             info = r.json()
 
@@ -402,6 +410,7 @@ def get_models(request: Request, user=Depends(get_verified_user)):
             r = requests.get(
                 url=f'{request.app.state.config.AUTOMATIC1111_BASE_URL}/sdapi/v1/sd-models',
                 headers={'authorization': get_automatic1111_api_auth(request)},
+                timeout=IMAGE_HTTP_TIMEOUT_SEC,
             )
             models = r.json()
             return list(
@@ -431,9 +440,9 @@ def get_image_data(data: str, headers=None):
     try:
         if data.startswith('http://') or data.startswith('https://'):
             if headers:
-                r = requests.get(data, headers=headers)
+                r = requests.get(data, headers=headers, timeout=IMAGE_HTTP_TIMEOUT_SEC)
             else:
-                r = requests.get(data)
+                r = requests.get(data, timeout=IMAGE_HTTP_TIMEOUT_SEC)
 
             r.raise_for_status()
             if r.headers['content-type'].split('/')[0] == 'image':
@@ -574,6 +583,7 @@ async def image_generations(
                 url=url,
                 json=data,
                 headers=headers,
+                timeout=IMAGE_HTTP_TIMEOUT_SEC,
             )
 
             r.raise_for_status()
@@ -625,6 +635,7 @@ async def image_generations(
                 url=f'{request.app.state.config.IMAGES_GEMINI_API_BASE_URL}/models/{model}',
                 json=data,
                 headers=headers,
+                timeout=IMAGE_HTTP_TIMEOUT_SEC,
             )
 
             r.raise_for_status()
@@ -733,6 +744,7 @@ async def image_generations(
                 url=f'{request.app.state.config.AUTOMATIC1111_BASE_URL}/sdapi/v1/txt2img',
                 json=data,
                 headers={'authorization': get_automatic1111_api_auth(request)},
+                timeout=IMAGE_HTTP_TIMEOUT_SEC,
             )
 
             res = r.json()
