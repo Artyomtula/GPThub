@@ -478,145 +478,39 @@
 							transition:flyAndScale
 						>
 							<slot>
-								{#if searchEnabled}
-									<div class="flex items-center gap-2.5 px-4.5 pt-3.5 mb-1.5">
-										<Search className="size-4" strokeWidth="2.5" />
+								<div class="flex items-center gap-2.5 px-4.5 pt-3.5 mb-1.5">
+									<Search className="size-4" strokeWidth="2.5" />
 
-										<input
-											id="model-search-input"
-											bind:value={searchValue}
-											class="w-full text-sm bg-transparent outline-hidden"
-											placeholder={searchPlaceholder}
-											autocomplete="off"
-											aria-label={$i18n.t('Search In Models')}
-											on:keydown={(e) => {
-												if (e.code === 'Enter' && filteredItems.length > 0) {
-													value = filteredItems[selectedModelIdx].value;
-													show = false;
-													return; // dont need to scroll on selection
-												} else if (e.code === 'ArrowDown') {
-													e.stopPropagation();
-													selectedModelIdx = Math.min(
-														selectedModelIdx + 1,
-														filteredItems.length - 1
-													);
-												} else if (e.code === 'ArrowUp') {
-													e.stopPropagation();
-													selectedModelIdx = Math.max(selectedModelIdx - 1, 0);
-												} else {
-													// if the user types something, reset to the top selection.
-													selectedModelIdx = 0;
-												}
+									<input
+										id="model-search-input"
+										bind:value={searchValue}
+										class="w-full text-sm bg-transparent outline-hidden"
+										placeholder={searchPlaceholder}
+										autocomplete="off"
+										aria-label={$i18n.t('Search In Models')}
+										on:keydown={(e) => {
+											if (e.code === 'Enter' && filteredItems.length > 0) {
+												value = filteredItems[selectedModelIdx].value;
+												show = false;
+												return;
+											} else if (e.code === 'ArrowDown') {
+												e.stopPropagation();
+												selectedModelIdx = Math.min(selectedModelIdx + 1, filteredItems.length - 1);
+											} else if (e.code === 'ArrowUp') {
+												e.stopPropagation();
+												selectedModelIdx = Math.max(selectedModelIdx - 1, 0);
+											} else {
+												selectedModelIdx = 0;
+											}
 
-												const item = document.querySelector(`[data-arrow-selected="true"]`);
-												item?.scrollIntoView({
-													block: 'center',
-													inline: 'nearest',
-													behavior: 'instant'
-												});
-											}}
-										/>
-									</div>
-								{/if}
-
-								<div class="px-2">
-									{#if showFilters && tags && items.filter((item) => !(item.model?.info?.meta?.hidden ?? false)).length > 0}
-										<div
-											class=" flex w-full bg-white dark:bg-gray-850 overflow-x-auto scrollbar-none font-[450] mb-0.5"
-											on:wheel={(e) => {
-												if (e.deltaY !== 0) {
-													e.preventDefault();
-													e.currentTarget.scrollLeft += e.deltaY;
-												}
-											}}
-										>
-											<div
-												class="flex gap-1 w-fit text-center text-sm rounded-full bg-transparent px-1.5 whitespace-nowrap"
-												bind:this={tagsContainerElement}
-											>
-												{#if items.find((item) => item.model?.connection_type === 'local') || items.find((item) => item.model?.connection_type === 'external') || items.find((item) => item.model?.direct) || tags.length > 0}
-													<button
-														class="min-w-fit outline-none px-1.5 py-0.5 {selectedTag === '' &&
-														selectedConnectionType === ''
-															? ''
-															: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
-														aria-pressed={selectedTag === '' && selectedConnectionType === ''}
-														on:click={() => {
-															selectedConnectionType = '';
-															selectedTag = '';
-														}}
-													>
-														{$i18n.t('All')}
-													</button>
-												{/if}
-
-												{#if items.find((item) => item.model?.connection_type === 'local')}
-													<button
-														class="min-w-fit outline-none px-1.5 py-0.5 {selectedConnectionType ===
-														'local'
-															? ''
-															: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
-														aria-pressed={selectedConnectionType === 'local'}
-														on:click={() => {
-															selectedTag = '';
-															selectedConnectionType = 'local';
-														}}
-													>
-														{$i18n.t('Local')}
-													</button>
-												{/if}
-
-												{#if items.find((item) => item.model?.connection_type === 'external')}
-													<button
-														class="min-w-fit outline-none px-1.5 py-0.5 {selectedConnectionType ===
-														'external'
-															? ''
-															: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
-														aria-pressed={selectedConnectionType === 'external'}
-														on:click={() => {
-															selectedTag = '';
-															selectedConnectionType = 'external';
-														}}
-													>
-														{$i18n.t('External')}
-													</button>
-												{/if}
-
-												{#if items.find((item) => item.model?.direct)}
-													<button
-														class="min-w-fit outline-none px-1.5 py-0.5 {selectedConnectionType ===
-														'direct'
-															? ''
-															: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
-														aria-pressed={selectedConnectionType === 'direct'}
-														on:click={() => {
-															selectedTag = '';
-															selectedConnectionType = 'direct';
-														}}
-													>
-														{$i18n.t('Direct')}
-													</button>
-												{/if}
-
-												{#each tags as tag}
-													<Tooltip content={tag}>
-														<button
-															class="min-w-fit outline-none px-1.5 py-0.5 {selectedTag === tag
-																? ''
-																: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
-															aria-pressed={selectedTag === tag}
-															on:click={() => {
-																selectedConnectionType = '';
-																selectedTag = tag;
-															}}
-														>
-															{tag.length > 16 ? `${tag.slice(0, 16)}...` : tag}
-														</button>
-													</Tooltip>
-												{/each}
-											</div>
-										</div>
-									{/if}
+											const item = document.querySelector(`[data-arrow-selected="true"]`);
+											item?.scrollIntoView({
+												block: 'center',
+												inline: 'nearest',
+												behavior: 'instant'
+											});
+										}}
+									/>
 								</div>
 
 								{#if showAutoMode}
@@ -654,13 +548,6 @@
 													</Tooltip>
 												</div>
 											</div>
-											{#if mode === 'auto'}
-												<div
-													class="w-4 h-4 flex items-center justify-center text-gray-700 dark:text-gray-200"
-												>
-													<Check className="size-3" />
-												</div>
-											{/if}
 										</button>
 									</div>
 									<div class="mx-3 my-1 h-px bg-gray-100 dark:bg-gray-800/80" />
@@ -704,13 +591,22 @@
 												listScrollTop = listContainer.scrollTop;
 											}}
 										>
-											<!-- GPTHub virtual agents (always few, no virtual scroll) -->
+											<!-- GPTHub virtual agents -->
+											{#if agentItems.length > 0}
+												<div class="px-3 pt-1 pb-0.5">
+													<span
+														class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide"
+														>{$i18n.t('Assistants')}</span
+													>
+												</div>
+											{/if}
 											{#each agentItems as item, i (item.value)}
 												<ModelItem
 													{selectedModelIdx}
 													{item}
 													index={i}
 													{value}
+													isAgent={true}
 													selectionEnabled={!(showAutoMode && mode === 'auto')}
 													inactive={showAutoMode && mode === 'auto'}
 													{pinModelHandler}
@@ -724,12 +620,18 @@
 												/>
 											{/each}
 
-											<!-- Divider between agents and regular models -->
+											<!-- Divider + Models section label -->
 											{#if agentItems.length > 0 && regularItems.length > 0}
 												<div class="mx-3 my-1 h-px bg-gray-100 dark:bg-gray-800/80"></div>
 											{/if}
-
-											<!-- Regular models with virtual scroll -->
+											{#if regularItems.length > 0}
+												<div class="px-3 pt-1 pb-0.5">
+													<span
+														class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide"
+														>{$i18n.t('Models')}</span
+													>
+												</div>
+											{/if}
 											<div style="height: {visibleStart * ITEM_HEIGHT}px;" />
 											{#each regularItems.slice(visibleStart, visibleEnd) as item, i (item.value)}
 												{@const index = agentItems.length + visibleStart + i}

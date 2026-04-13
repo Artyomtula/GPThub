@@ -1279,6 +1279,7 @@
 	"Model Usage": "",
 	"Model(s) do not support file upload": "Модель (или модели) не поддерживают загрузку файлов",
 	"Modelfile Content": "Содержимое файла модели",
+	"Assistants": "Ассистенты",
 	"Models": "Модели",
 	"Models Access": "Доступ к моделям",
 	"Models configuration saved successfully": "Конфигурация моделей успешно сохранена.",
