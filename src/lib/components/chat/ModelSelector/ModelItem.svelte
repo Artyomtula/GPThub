@@ -26,6 +26,8 @@
 	export let selectionEnabled: boolean = true;
 	export let inactive: boolean = false;
 
+	export let isAgent: boolean = false;
+
 	export let unloadModelHandler: (modelValue: string) => void = () => {};
 	export let pinModelHandler: (modelId: string) => void = () => {};
 
@@ -83,19 +85,24 @@
 		{/if} -->
 
 		<div class="flex items-center gap-2">
-			<div class="flex items-center min-w-fit">
-				<Tooltip content={$user?.role === 'admin' ? (item?.value ?? '') : ''} placement="top-start">
-					<img
-						src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${item.model.id}&lang=${$i18n.language}`}
-						alt={$i18n.t('{{modelName}} profile image', { modelName: item.label })}
-						class="rounded-full size-5 flex items-center"
-						loading="lazy"
-						on:error={(e) => {
-							e.currentTarget.src = '/favicon.png';
-						}}
-					/>
-				</Tooltip>
-			</div>
+			{#if !isAgent}
+				<div class="flex items-center min-w-fit">
+					<Tooltip
+						content={$user?.role === 'admin' ? (item?.value ?? '') : ''}
+						placement="top-start"
+					>
+						<img
+							src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${item.model.id}&lang=${$i18n.language}`}
+							alt={$i18n.t('{{modelName}} profile image', { modelName: item.label })}
+							class="rounded-full size-5 flex items-center"
+							loading="lazy"
+							on:error={(e) => {
+								e.currentTarget.src = '/favicon.png';
+							}}
+						/>
+					</Tooltip>
+				</div>
+			{/if}
 
 			<div class="flex items-center">
 				<Tooltip content={`${item.label} (${item.value})`} placement="top-start">
@@ -150,7 +157,7 @@
 
 				<!-- {JSON.stringify(item.info)} -->
 
-				{#if (item?.model?.tags ?? []).length > 0}
+				{#if !isAgent && (item?.model?.tags ?? []).length > 0}
 					{#key item.model.id}
 						<Tooltip elementId="tags-{item.model.id}">
 							<div slot="tooltip" id="tags-{item.model.id}">
@@ -198,61 +205,61 @@
 		</div>
 	</div>
 
-	<div class="ml-auto pl-2 pr-1 shrink-0 grid grid-cols-[1rem_1rem_1rem] items-center gap-1.5">
-		<Tooltip
-			content={isLocalModel(item.model)
-				? $i18n.t('Local model (runs on your machine)')
-				: $i18n.t('Cloud model')}
-		>
-			<div class="w-4 text-gray-500 dark:text-gray-400 flex items-center justify-center">
-				{#if isLocalModel(item.model)}
-					<Computer className="size-3.5" strokeWidth="1.5" />
-				{:else}
-					<Cloud className="size-3.5" strokeWidth="1.5" />
-				{/if}
-			</div>
-		</Tooltip>
-
-		{#if $user?.role === 'admin' && item.model.owned_by === 'ollama' && item.model.ollama?.expires_at && new Date(item.model.ollama?.expires_at * 1000) > new Date()}
+	{#if !isAgent}
+		<div class="ml-auto pl-2 pr-1 shrink-0 flex items-center gap-1.5">
 			<Tooltip
-				content={`${$i18n.t('Eject')}`}
-				className="flex-shrink-0 group-hover/item:opacity-100 opacity-0"
+				content={isLocalModel(item.model)
+					? $i18n.t('Local model (runs on your machine)')
+					: $i18n.t('Cloud model')}
+			>
+				<div class="w-4 text-gray-500 dark:text-gray-400 flex items-center justify-center">
+					{#if isLocalModel(item.model)}
+						<Computer className="size-3.5" strokeWidth="1.5" />
+					{:else}
+						<Cloud className="size-3.5" strokeWidth="1.5" />
+					{/if}
+				</div>
+			</Tooltip>
+
+			{#if $user?.role === 'admin' && item.model.owned_by === 'ollama' && item.model.ollama?.expires_at && new Date(item.model.ollama?.expires_at * 1000) > new Date()}
+				<Tooltip
+					content={`${$i18n.t('Eject')}`}
+					className="flex-shrink-0 group-hover/item:opacity-100 opacity-0"
+				>
+					<button
+						class="flex items-center justify-center w-4 h-4"
+						aria-label={$i18n.t('Eject model')}
+						on:click={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
+							unloadModelHandler(item.value);
+						}}
+					>
+						<ArrowUpTray className="size-3" />
+					</button>
+				</Tooltip>
+			{/if}
+
+			<ModelItemMenu
+				bind:show={showMenu}
+				model={item.model}
+				{pinModelHandler}
+				copyLinkHandler={() => {
+					copyLinkHandler(item.model);
+				}}
 			>
 				<button
+					aria-label={`${$i18n.t('More Options')}`}
 					class="flex items-center justify-center w-4 h-4"
-					aria-label={$i18n.t('Eject model')}
 					on:click={(e) => {
 						e.preventDefault();
 						e.stopPropagation();
-						unloadModelHandler(item.value);
+						showMenu = !showMenu;
 					}}
 				>
-					<ArrowUpTray className="size-3" />
+					<EllipsisHorizontal />
 				</button>
-			</Tooltip>
-		{:else}
-			<div class="w-4 h-4" aria-hidden="true" />
-		{/if}
-
-		<ModelItemMenu
-			bind:show={showMenu}
-			model={item.model}
-			{pinModelHandler}
-			copyLinkHandler={() => {
-				copyLinkHandler(item.model);
-			}}
-		>
-			<button
-				aria-label={`${$i18n.t('More Options')}`}
-				class="flex items-center justify-center w-4 h-4"
-				on:click={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					showMenu = !showMenu;
-				}}
-			>
-				<EllipsisHorizontal />
-			</button>
-		</ModelItemMenu>
-	</div>
+			</ModelItemMenu>
+		</div>
+	{/if}
 </button>

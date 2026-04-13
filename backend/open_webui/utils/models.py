@@ -95,9 +95,9 @@ async def get_all_models(request, refresh: bool = False, user: UserModel = None)
     # deep copy the base models to avoid modifying the original list
     models = [model.copy() for model in base_models]
 
-    # If there are no models, return an empty list
+    # If there are no base models, still return virtual models
     if len(models) == 0:
-        return []
+        return prepend_virtual_models([])
 
     # Add arena models
     if request.app.state.config.ENABLE_EVALUATION_ARENA_MODELS:
