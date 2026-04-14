@@ -462,15 +462,9 @@
 
 				<Sidebar />
 
-				{#if $page.url.pathname === '/'}
-					<div
-						class="gpthub-gradient-bg"
-						style="left: {$gradientLeft}px"
-						transition:fade={{ duration: 700 }}
-					>
-						<span></span><i></i>
-					</div>
-				{/if}
+				<div class="gpthub-gradient-bg" style="left: {$gradientLeft}px">
+					<span></span><i></i>
+				</div>
 
 				{#if loaded}
 					<slot />

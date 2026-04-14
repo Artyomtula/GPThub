@@ -437,7 +437,7 @@
 	</div>
 
 	<div
-		class="py-2 bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30"
+		class="py-2 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-3xl border border-gray-100/30 dark:border-gray-850/30"
 	>
 		<div class="px-3.5 flex flex-1 items-center w-full space-x-2 py-0.5 pb-2">
 			<div class="flex flex-1 items-center">
@@ -520,7 +520,7 @@
 
 				<div slot="content">
 					<div
-						class="w-[170px] rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-sm"
+						class="w-[170px] rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white/85 dark:bg-gray-850/85 backdrop-blur-xl dark:text-white shadow-sm"
 					>
 						<button
 							class="select-none flex w-full gap-2 items-center px-3 py-1.5 text-sm font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"

@@ -314,7 +314,7 @@
 	</div>
 
 	<div
-		class="py-2 bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30"
+		class="py-2 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-3xl border border-gray-100/30 dark:border-gray-850/30"
 	>
 		<!-- The iron remembers its forge. -->
 		<div class=" flex w-full space-x-2 py-0.5 px-3.5 pb-2">

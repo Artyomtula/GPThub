@@ -493,7 +493,7 @@
 							{...props}
 							class="{props.class} z-40 {$mobile
 								? `w-full`
-								: `${className}`} max-w-[calc(100vw-1rem)] justify-start rounded-2xl bg-white dark:bg-gray-850 dark:text-white shadow-lg outline-hidden"
+								: `${className}`} max-w-[calc(100vw-1rem)] justify-start rounded-2xl bg-white/85 dark:bg-gray-850/85 backdrop-blur-xl dark:text-white shadow-lg outline-hidden"
 							transition:flyAndScale
 						>
 							<slot>
