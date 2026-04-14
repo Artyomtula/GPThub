@@ -38,9 +38,8 @@
 		if (id === 'gpthub:auto') return 'auto';
 		if (id === 'gpthub:code') return 'code';
 		if (id === 'gpthub:vision') return 'vision';
-		if (id === 'gpthub:image') return 'image';
 		if (id === 'gpthub:web') return 'web';
-		if (id === 'gpthub:research') return 'research';
+		if (id === 'gpthub:research') return 'web';
 		const text = `${id} ${(model?.name || '').toLowerCase()}`;
 		const caps = model?.info?.meta?.capabilities || {};
 		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text))

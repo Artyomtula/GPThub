@@ -1856,6 +1856,174 @@ def _pick_first_available_model_for_capability(
     return None
 
 
+def _is_deep_research_model(model: dict | None) -> bool:
+    if not model:
+        return False
+
+    text = f"{(model.get('id') or '').lower()} {(model.get('name') or '').lower()}"
+    tags = model.get('tags') or []
+    tag_text = ' '.join(
+        [
+            str(tag.get('name', '')).lower()
+            for tag in tags
+            if isinstance(tag, dict)
+        ]
+    )
+    text = f'{text} {tag_text}'
+
+    # Heuristic: reasoning / deep-analysis oriented models.
+    return any(
+        marker in text
+        for marker in [
+            'deepseek',
+            'reason',
+            'r1',
+            'o1',
+            'o3',
+            'analysis',
+            'think',
+            'research',
+        ]
+    )
+
+
+def _pick_preferred_model_for_capability(
+    capability_graph: dict[str, list[str]],
+    capability: str,
+    available_models: dict[str, dict],
+    prefer_deep_research: bool = False,
+) -> str | None:
+    base_pick = _pick_first_available_model_for_capability(capability_graph, capability)
+    if not prefer_deep_research:
+        return base_pick
+
+    if capability == 'auto':
+        fallbacks = ['text', 'code', 'vision', 'image_generation']
+    elif capability == 'code':
+        fallbacks = ['code', 'text']
+    elif capability == 'vision':
+        # Vision assistant handles both analysis and generation prompts.
+        fallbacks = ['vision', 'image_generation', 'text']
+    elif capability == 'image_generation':
+        fallbacks = ['image_generation']
+    elif capability == 'audio_transcription':
+        fallbacks = ['audio_transcription', 'text']
+    elif capability == 'audio_speech':
+        fallbacks = ['audio_speech', 'text']
+    elif capability == 'web_search':
+        fallbacks = ['text', 'code', 'vision']
+    elif capability == 'research':
+        fallbacks = ['text', 'code', 'vision']
+    else:
+        fallbacks = [capability, 'text', 'code', 'vision']
+
+    for candidate_capability in fallbacks:
+        model_ids = capability_graph.get(candidate_capability, [])
+        if not model_ids:
+            continue
+
+        deep_candidates = [mid for mid in model_ids if _is_deep_research_model(available_models.get(mid))]
+        if deep_candidates:
+            return deep_candidates[0]
+
+        if base_pick is None:
+            base_pick = model_ids[0]
+
+    return base_pick
+
+
+def _build_voice_ack_text(capability: str | None) -> str:
+    if capability == 'image_generation':
+        return 'Генерирую изображение, секунду.'
+    if capability == 'code':
+        return 'Пишу код, сейчас покажу результат.'
+    if capability == 'vision':
+        return 'Анализирую изображение, подождите немного.'
+    if capability == 'audio_transcription':
+        return 'Распознаю аудио, это займет немного времени.'
+    if capability == 'web_search':
+        return 'Ищу информацию в интернете.'
+    if capability == 'research':
+        return 'Запускаю исследование, собираю факты.'
+    return 'Принял запрос, сейчас сделаю.'
+
+
+def _build_manual_mode_guidance_response(
+    form_data: dict,
+    selection_effective: dict,
+    available_models: dict[str, dict],
+) -> dict | None:
+    """
+    Build a user-facing assistant guidance message when the user is in manual model mode
+    and requested task likely mismatches the currently selected setup.
+    """
+    if selection_effective.get('mode') != 'manual':
+        return None
+
+    resolved_model_id = selection_effective.get('resolved_model_id')
+    if not isinstance(resolved_model_id, str) or not resolved_model_id:
+        return None
+
+    selected_model = available_models.get(resolved_model_id)
+    if not selected_model or is_virtual_model(selected_model):
+        return None
+
+    features = form_data.get('features') or {}
+    prompt = _extract_last_user_prompt(form_data)
+    requested_capability = infer_request_capability(prompt)
+
+    selected_caps = infer_model_capabilities(selected_model)
+    selected_model_name = selected_model.get('name') or resolved_model_id
+
+    if requested_capability == 'image_generation' and not features.get('image_generation'):
+        if 'image_generation' in selected_caps:
+            # Model might support image generation natively via provider endpoint;
+            # do not block this case.
+            return None
+
+        capability_graph = selection_effective.get('capability_graph') or {}
+        image_candidates = capability_graph.get('image_generation') or []
+        recommended_model_id = image_candidates[0] if image_candidates else os.getenv('IMAGE_GENERATION_MODEL', '')
+        recommended_model = available_models.get(recommended_model_id) if recommended_model_id else None
+        recommended_model_name = (
+            (recommended_model.get('name') or recommended_model_id) if recommended_model else recommended_model_id
+        )
+
+        recommendation_line = (
+            f"Рекомендованная модель для изображений: **{recommended_model_name}**."
+            if recommended_model_name
+            else "Рекомендую включить режим **Image** или переключиться в **Auto Mode**."
+        )
+
+        content = (
+            f"Похоже, вы попросили сгенерировать изображение, но сейчас выбрана текстовая модель "
+            f"**{selected_model_name}**.\n\n"
+            "Чтобы корректно получить картинку:\n"
+            "1. Включите переключатель **Image** под полем ввода.\n"
+            "2. Либо переключитесь в **Auto Mode**, чтобы система сама выбрала нужный маршрут.\n\n"
+            f"{recommendation_line}"
+        )
+
+        return {
+            'id': f'chatcmpl-gpthub-guidance-{uuid4()}',
+            'object': 'chat.completion',
+            'created': int(time.time()),
+            'model': resolved_model_id,
+            'choices': [
+                {
+                    'index': 0,
+                    'message': {
+                        'role': 'assistant',
+                        'content': content,
+                    },
+                    'finish_reason': 'stop',
+                }
+            ],
+        }
+
+    return None
+
+
 async def _resolve_effective_model_selection(
     request: Request,
     form_data: dict,
@@ -1887,9 +2055,8 @@ async def _resolve_effective_model_selection(
     ]
     capability_graph = build_capability_graph(available_models, non_arena_model_ids)
     last_user_prompt = _extract_last_user_prompt(form_data)
-    # Detect voice mode early so router and capability guards can use it below.
-    is_voice_mode = bool((form_data.get('features') or {}).get('voice'))
-
+    features = form_data.get('features') or {}
+    prefer_deep_research = bool(features.get('deep_research') or features.get('research'))
     resolved_model_id = None
     resolution_reason = 'manual_missing'
     display_model_id = None
@@ -1904,6 +2071,14 @@ async def _resolve_effective_model_selection(
             requested_virtual_model_id = requested_model_id
             requested_virtual_capability = get_virtual_capability(model, requested_model_id)
             break
+        if requested_virtual_capability is None and is_virtual_model_id(requested_model_id):
+            # Legacy support: old virtual ids might not be present in current model list,
+            # but we still can map them to capabilities and route normally.
+            legacy_capability = get_virtual_capability(None, requested_model_id)
+            if legacy_capability:
+                requested_virtual_model_id = requested_model_id
+                requested_virtual_capability = legacy_capability
+                break
 
     if mode == 'manual':
         # Explicit real model in manual mode always wins.
@@ -1935,10 +2110,6 @@ async def _resolve_effective_model_selection(
                         continue
                     model = available_models.get(model_id, {})
                     caps = sorted(infer_model_capabilities(model))
-                    # In voice mode, exclude image-only models so the router never
-                    # picks them for a spoken conversation request.
-                    if is_voice_mode and caps == ['image_generation']:
-                        continue
                     model_catalogue.append({
                         'id': model_id,
                         'name': model.get('name') or model_id,
@@ -1968,6 +2139,12 @@ async def _resolve_effective_model_selection(
                 ]
 
                 try:
+                    if prefer_deep_research:
+                        router_messages[0]['content'] += (
+                            ' Prefer models that are stronger at long-form reasoning, '
+                            'multi-step analysis and research synthesis.'
+                        )
+
                     router_response = await chat_completion_handler(
                         request,
                         {
@@ -1994,23 +2171,33 @@ async def _resolve_effective_model_selection(
                         ):
                             resolved_model_id = candidate_model_id
                             resolved_capability = infer_request_capability(last_user_prompt)
-                            # In voice mode, never let this resolve to image_generation
-                            if is_voice_mode and resolved_capability == 'image_generation':
-                                resolved_capability = 'text'
                             resolution_reason = 'router_model_choice'
                 except Exception as e:
                     log.debug(f'Router model selection failed: {e}')
 
             if resolved_model_id is None:
                 resolved_capability = infer_request_capability(last_user_prompt)
-                # In voice mode, fall back to text rather than image_generation
-                if is_voice_mode and resolved_capability == 'image_generation':
-                    resolved_capability = 'text'
-                resolved_model_id = _pick_first_available_model_for_capability(capability_graph, resolved_capability)
+                resolved_model_id = _pick_preferred_model_for_capability(
+                    capability_graph,
+                    resolved_capability,
+                    available_models,
+                    prefer_deep_research=prefer_deep_research,
+                )
                 resolution_reason = 'router_heuristic_fallback'
         else:
             resolved_capability = requested_capability
-            resolved_model_id = _pick_first_available_model_for_capability(capability_graph, requested_capability)
+            # gpthub:vision should cover both image analysis and image generation.
+            if requested_capability == 'vision':
+                inferred = infer_request_capability(last_user_prompt)
+                if inferred == 'image_generation':
+                    resolved_capability = 'image_generation'
+
+            resolved_model_id = _pick_preferred_model_for_capability(
+                capability_graph,
+                resolved_capability,
+                available_models,
+                prefer_deep_research=prefer_deep_research,
+            )
             resolution_reason = (
                 'manual_virtual_capability'
                 if mode == 'manual'
@@ -2035,13 +2222,6 @@ async def _resolve_effective_model_selection(
         # cannot be resolved, frontend should receive an explicit error.
         pass
 
-    # Voice mode: never route to image_generation — the user is having a spoken
-    # conversation and expects a text/TTS reply, not an image.
-    if is_voice_mode and resolved_capability == 'image_generation':
-        resolved_capability = 'text'
-        resolved_model_id = _pick_first_available_model_for_capability(capability_graph, 'text')
-        resolution_reason = f'{resolution_reason}|voice_image_overridden'
-
     # image_generation capability: the actual image is created via the env-configured
     # IMAGE_GENERATION_MODEL inside chat_image_generation_handler, which does NOT use
     # form_data['model']. After image creation, the pipeline continues with the LLM to
@@ -2050,7 +2230,12 @@ async def _resolve_effective_model_selection(
     # We reroute to the best available text model while keeping resolved_capability so
     # main.py can still force features['image_generation'] = True.
     if resolved_capability == 'image_generation':
-        text_model_id = _pick_first_available_model_for_capability(capability_graph, 'text')
+        text_model_id = _pick_preferred_model_for_capability(
+            capability_graph,
+            'text',
+            available_models,
+            prefer_deep_research=prefer_deep_research,
+        )
         if text_model_id:
             resolved_model_id = text_model_id
             resolution_reason = f'{resolution_reason}|text_override_for_followup'
@@ -2125,8 +2310,7 @@ async def chat_completion(
         # The frontend cannot know this in advance (it sees a virtual/text model).
         if selection_effective.get('resolved_capability') == 'image_generation':
             features = form_data.setdefault('features', {})
-            # Never force image generation in voice mode — user expects a spoken reply
-            if not features.get('image_generation') and not features.get('voice', False):
+            if not features.get('image_generation'):
                 features['image_generation'] = True
 
         # When the router resolves to a web-search model, force web_search on.
@@ -2140,6 +2324,7 @@ async def chat_completion(
             features = form_data.setdefault('features', {})
             features['research'] = True
             features['web_search'] = True
+
     else:
         if selection_mode == 'manual':
             raise HTTPException(
@@ -2286,6 +2471,36 @@ async def chat_completion(
 
     async def process_chat(request, form_data, user, metadata, model):
         try:
+            mismatch_guidance_response = _build_manual_mode_guidance_response(
+                form_data,
+                metadata.get('selection_effective') or {},
+                request.app.state.MODELS,
+            )
+            if mismatch_guidance_response is not None:
+                if metadata.get('selection_effective'):
+                    mismatch_guidance_response['selection_effective'] = metadata['selection_effective']
+                    resolved_model_id = metadata['selection_effective'].get('resolved_model_id')
+                    if resolved_model_id:
+                        mismatch_guidance_response['selected_model_id'] = resolved_model_id
+
+                ctx = build_chat_response_context(request, form_data, user, model, metadata, tasks, [])
+                return await process_chat_response(mismatch_guidance_response, ctx)
+
+            if (form_data.get('features') or {}).get('voice'):
+                event_emitter = get_event_emitter(metadata)
+                if event_emitter:
+                    await event_emitter(
+                        {
+                            'type': 'chat:voice:ack',
+                            'data': {
+                                'content': _build_voice_ack_text(
+                                    metadata.get('selection_effective', {}).get('resolved_capability')
+                                ),
+                                'capability': metadata.get('selection_effective', {}).get('resolved_capability'),
+                            },
+                        }
+                    )
+
             form_data, metadata, events = await process_chat_payload(request, form_data, user, metadata, model)
 
             response = await chat_completion_handler(request, form_data, user)

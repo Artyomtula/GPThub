@@ -2536,11 +2536,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
         if 'image_generation' in features and features['image_generation']:
             # Skip forced image generation when native FC is enabled - model can use generate_image tool
-            # Also skip in voice mode — user expects a spoken reply, not an image.
-            if (
-                metadata.get('params', {}).get('function_calling') != 'native'
-                and not features.get('voice', False)
-            ):
+            if metadata.get('params', {}).get('function_calling') != 'native':
                 form_data = await chat_image_generation_handler(request, form_data, extra_params, user)
 
         if 'code_interpreter' in features and features['code_interpreter']:

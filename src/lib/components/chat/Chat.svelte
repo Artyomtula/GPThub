@@ -150,6 +150,7 @@
 
 	let imageGenerationEnabled = false;
 	let webSearchEnabled = false;
+	let deepResearchEnabled = false;
 	let codeInterpreterEnabled = false;
 
 	let showCommands = false;
@@ -188,6 +189,7 @@
 		selectedToolIds = [];
 		selectedFilterIds = [];
 		webSearchEnabled = false;
+		deepResearchEnabled = false;
 		imageGenerationEnabled = false;
 
 		const storageChatInput = sessionStorage.getItem(
@@ -218,6 +220,7 @@
 						selectedToolIds = input.selectedToolIds;
 						selectedFilterIds = input.selectedFilterIds;
 						webSearchEnabled = input.webSearchEnabled;
+						deepResearchEnabled = input.deepResearchEnabled ?? false;
 						imageGenerationEnabled = input.imageGenerationEnabled;
 						codeInterpreterEnabled = input.codeInterpreterEnabled;
 					}
@@ -279,6 +282,7 @@
 		selectedFilterIds = [];
 		pendingOAuthTools = [];
 		webSearchEnabled = false;
+		deepResearchEnabled = false;
 		imageGenerationEnabled = false;
 		codeInterpreterEnabled = false;
 
@@ -354,6 +358,7 @@
 					($user?.role === 'admin' || $user?.permissions?.features?.web_search)
 				) {
 					webSearchEnabled = model.info.meta.defaultFeatureIds.includes('web_search');
+					deepResearchEnabled = model.info.meta.defaultFeatureIds.includes('research');
 				}
 
 				if (
@@ -415,6 +420,58 @@
 		}
 	};
 
+	const speakShortText = async (text: string) => {
+		if (!text || typeof window === 'undefined') return;
+		try {
+			const utterance = new SpeechSynthesisUtterance(text);
+			utterance.lang = $i18n.resolvedLanguage ?? 'ru-RU';
+			utterance.rate = $settings?.audio?.tts?.playbackRate ?? 1;
+			window.speechSynthesis.speak(utterance);
+		} catch (error) {
+			console.error('Failed to play short TTS', error);
+		}
+	};
+
+	const insertVoiceAckMessage = async (targetMessage, content: string) => {
+		if (!targetMessage?.parentId || !content) return;
+
+		const parentMessage = history.messages[targetMessage.parentId];
+		if (!parentMessage) return;
+
+		let ackMessageId = parentMessage.childrenIds?.find(
+			(id) => history.messages[id]?.voiceAck === true
+		);
+
+		if (!ackMessageId) {
+			ackMessageId = uuidv4();
+			parentMessage.childrenIds = [
+				ackMessageId,
+				...(parentMessage.childrenIds ?? []).filter((id) => id !== ackMessageId)
+			];
+			history.messages[parentMessage.id] = parentMessage;
+		}
+
+		history.messages[ackMessageId] = {
+			id: ackMessageId,
+			parentId: parentMessage.id,
+			childrenIds: [],
+			role: 'assistant',
+			content,
+			done: true,
+			voiceAck: true,
+			model: targetMessage.model,
+			modelName: targetMessage.modelName,
+			modelIdx: targetMessage.modelIdx ?? 0,
+			timestamp: Math.floor(Date.now() / 1000)
+		};
+
+		history = history;
+		await tick();
+		if (autoScroll) {
+			scrollToBottom('smooth');
+		}
+	};
+
 	const chatEventHandler = async (event, cb) => {
 		console.log(event);
 
@@ -472,6 +529,12 @@
 
 					if (autoScroll) {
 						scrollToBottom('smooth');
+					}
+				} else if (type === 'chat:voice:ack') {
+					const ackContent = data?.content;
+					if (ackContent && typeof ackContent === 'string') {
+						await insertVoiceAckMessage(message, ackContent);
+						await speakShortText(ackContent);
 					}
 				} else if (type === 'chat:message:favorite') {
 					// Update message favorite status
@@ -746,6 +809,7 @@
 				selectedToolIds = [];
 				selectedFilterIds = [];
 				webSearchEnabled = false;
+				deepResearchEnabled = false;
 				imageGenerationEnabled = false;
 				codeInterpreterEnabled = false;
 
@@ -758,6 +822,7 @@
 						selectedToolIds = input.selectedToolIds;
 						selectedFilterIds = input.selectedFilterIds;
 						webSearchEnabled = input.webSearchEnabled;
+						deepResearchEnabled = input.deepResearchEnabled ?? false;
 						imageGenerationEnabled = input.imageGenerationEnabled;
 						codeInterpreterEnabled = input.codeInterpreterEnabled;
 					}
@@ -1182,6 +1247,10 @@
 
 		if ($page.url.searchParams.get('web-search') === 'true') {
 			webSearchEnabled = true;
+		}
+
+		if ($page.url.searchParams.get('deep-research') === 'true') {
+			deepResearchEnabled = true;
 		}
 
 		if ($page.url.searchParams.get('image-generation') === 'true') {
@@ -1738,8 +1807,10 @@
 				copyToClipboard(message.content);
 			}
 
-			if (($settings.responseAutoPlayback || $pendingVoiceResponse) && !$showCallOverlay) {
+			if ($pendingVoiceResponse && !$showCallOverlay) {
 				pendingVoiceResponse.set(false);
+				await speakShortText($i18n.t('Done'));
+			} else if ($settings.responseAutoPlayback && !$showCallOverlay) {
 				await tick();
 				document.getElementById(`speak-button-${message.id}`)?.click();
 			}
@@ -2080,7 +2151,8 @@
 					$config?.features?.enable_web_search &&
 					($user?.role === 'admin' || $user?.permissions?.features?.web_search)
 						? webSearchEnabled
-						: false
+						: false,
+				deep_research: deepResearchEnabled
 			};
 
 		const currentModels = atSelectedModel?.id ? [atSelectedModel.id] : selectedModels;
@@ -2951,6 +3023,7 @@
 									bind:codeInterpreterEnabled
 									{pendingOAuthTools}
 									bind:webSearchEnabled
+									bind:deepResearchEnabled
 									bind:atSelectedModel
 									bind:showCommands
 									bind:dragged
@@ -3035,6 +3108,7 @@
 									bind:imageGenerationEnabled
 									bind:codeInterpreterEnabled
 									bind:webSearchEnabled
+									bind:deepResearchEnabled
 									bind:atSelectedModel
 									bind:showCommands
 									bind:dragged

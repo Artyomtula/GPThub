@@ -25,41 +25,6 @@ VIRTUAL_MODEL_SPECS: tuple[VirtualModelSpec, ...] = (
         description='Automatically picks the best model for your request — just type and go.',
         tags=('GPTHub', 'Virtual', 'Auto'),
     ),
-    VirtualModelSpec(
-        id='gpthub:code',
-        name='Code Assistant',
-        capability='code',
-        description='Writes, reviews and explains code in any programming language.',
-        tags=('GPTHub', 'Virtual', 'Code'),
-    ),
-    VirtualModelSpec(
-        id='gpthub:vision',
-        name='Vision',
-        capability='vision',
-        description='Analyses images, screenshots and photos — describe or ask questions about what you see.',
-        tags=('GPTHub', 'Virtual', 'Vision'),
-    ),
-    VirtualModelSpec(
-        id='gpthub:image',
-        name='Image Generator',
-        capability='image_generation',
-        description='Creates an image from your text description.',
-        tags=('GPTHub', 'Virtual', 'Image'),
-    ),
-    VirtualModelSpec(
-        id='gpthub:web',
-        name='Web Search',
-        capability='web_search',
-        description='Searches the web and gives you up-to-date information with cited sources.',
-        tags=('GPTHub', 'Virtual', 'Web'),
-    ),
-    VirtualModelSpec(
-        id='gpthub:research',
-        name='Deep Research',
-        capability='research',
-        description='Conducts multi-step research across multiple sources and delivers a structured report.',
-        tags=('GPTHub', 'Virtual', 'Research'),
-    ),
 )
 
 
@@ -112,6 +77,18 @@ def get_virtual_capability(model: dict[str, Any] | None, model_id: str | None = 
             return capability
 
     if isinstance(model_id, str):
+        # Backward compatibility: legacy virtual assistant ids
+        if model_id == 'gpthub:code':
+            return 'code'
+        if model_id == 'gpthub:vision':
+            return 'vision'
+        if model_id == 'gpthub:web':
+            return 'web_search'
+        if model_id == 'gpthub:image':
+            return 'image_generation'
+        if model_id == 'gpthub:research':
+            return 'research'
+
         for spec in VIRTUAL_MODEL_SPECS:
             if spec.id == model_id:
                 return spec.capability
@@ -284,6 +261,7 @@ def _virtual_capabilities(capability: str) -> dict[str, bool]:
         return {
             **defaults,
             'vision': True,
+            'image_generation': True,
         }
 
     if capability == 'image_generation':

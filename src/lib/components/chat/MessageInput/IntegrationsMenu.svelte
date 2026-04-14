@@ -23,6 +23,7 @@
 	import Wrench from '$lib/components/icons/Wrench.svelte';
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
+	import BookOpen from '$lib/components/icons/BookOpen.svelte';
 	import Photo from '$lib/components/icons/Photo.svelte';
 	import Terminal from '$lib/components/icons/Terminal.svelte';
 	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
@@ -41,6 +42,8 @@
 
 	export let showWebSearchButton = false;
 	export let webSearchEnabled = false;
+	export let showDeepResearchButton = false;
+	export let deepResearchEnabled = false;
 	export let showImageGenerationButton = false;
 	export let imageGenerationEnabled = false;
 	export let showCodeInterpreterButton = false;
@@ -237,6 +240,39 @@
 										state={webSearchEnabled}
 										on:change={async (e) => {
 											const state = e.detail;
+											await tick();
+										}}
+									/>
+								</div>
+							</button>
+						</Tooltip>
+					{/if}
+
+					{#if showDeepResearchButton}
+						<Tooltip
+							content={$i18n.t('Use a deeper reasoning mode without forcing web search')}
+							placement="top-start"
+						>
+							<button
+								class="flex w-full justify-between gap-2 items-center px-3 py-1.5 text-sm cursor-pointer rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50"
+								on:click={() => {
+									deepResearchEnabled = !deepResearchEnabled;
+								}}
+							>
+								<div class="flex-1 truncate">
+									<div class="flex flex-1 gap-2 items-center">
+										<div class="shrink-0">
+											<BookOpen className="size-4" strokeWidth="1.5" />
+										</div>
+
+										<div class=" truncate">{$i18n.t('Deep Thinking')}</div>
+									</div>
+								</div>
+
+								<div class=" shrink-0">
+									<Switch
+										state={deepResearchEnabled}
+										on:change={async () => {
 											await tick();
 										}}
 									/>
