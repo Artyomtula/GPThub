@@ -403,21 +403,18 @@
 
 <div
 	bind:clientWidth={containerWidth}
-	class="{loading
-		? ' bg-gray-100/50 dark:bg-gray-850/50'
-		: 'bg-indigo-300/10 dark:bg-indigo-500/10 '} rounded-full flex justify-between {className}"
+	class="rounded-full flex justify-between {className}"
+	style={loading
+		? 'background-color: rgb(243 244 246 / 0.5);'
+		: 'background-color: hsl(var(--gpthub-accent-hue, 250) 75% 65% / 0.1);'}
 >
 	<div class="flex items-center mr-1">
 		<button
 			type="button"
-			class="p-1.5
-
-            {loading
-				? ' bg-gray-200 dark:bg-gray-700/50'
-				: 'bg-indigo-400/20 text-indigo-600 dark:text-indigo-300 '} 
-
-
-             rounded-full"
+			class="p-1.5 rounded-full"
+			style={loading
+				? 'background-color: rgb(229 231 235); color: rgb(107 114 128);'
+				: 'background-color: hsl(var(--gpthub-accent-hue, 250) 70% 60% / 0.2); color: hsl(var(--gpthub-accent-hue, 250) 60% 45%);'}
 			on:click={async () => {
 				stopRecording();
 				onCancel();
@@ -437,14 +434,10 @@
 			{#each visualizerData.slice().reverse() as rms}
 				<div class="flex items-center h-full">
 					<div
-						class="w-[2px] shrink-0
-                    
-                    {loading
-							? ' bg-gray-500 dark:bg-gray-400   '
-							: 'bg-indigo-500 dark:bg-indigo-400  '} 
-                    
-                    inline-block h-full"
-						style="height: {Math.min(100, Math.max(14, rms * 100))}%;"
+						class="w-[2px] shrink-0 inline-block h-full"
+						style="height: {Math.min(100, Math.max(14, rms * 100))}%; background-color: {loading
+							? 'rgb(107 114 128)'
+							: 'hsl(var(--gpthub-accent-hue, 250) 65% 58%)'};"
 					/>
 				</div>
 			{/each}
@@ -454,11 +447,10 @@
 	<div class="flex">
 		<div class="  mx-1.5 pr-1 flex justify-center items-center">
 			<div
-				class="text-sm
-        
-        
-        {loading ? ' text-gray-500  dark:text-gray-400  ' : ' text-indigo-400 '} 
-       font-medium flex-1 mx-auto text-center"
+				class="text-sm font-medium flex-1 mx-auto text-center"
+				style={loading
+					? 'color: rgb(156 163 175);'
+					: 'color: hsl(var(--gpthub-accent-hue, 250) 65% 60%);'}
 			>
 				{formatSeconds(durationSeconds)}
 			</div>
@@ -560,7 +552,8 @@
 				<button
 					id="confirm-recording-button"
 					type="button"
-					class="p-1.5 bg-indigo-500 text-white dark:bg-indigo-500 dark:text-blue-950 rounded-full"
+					class="p-1.5 rounded-full text-white"
+					style="background-color: hsl(var(--gpthub-accent-hue, 250) 65% 55%);"
 					on:click={async () => {
 						await confirmRecording();
 					}}
@@ -589,6 +582,6 @@
 
 	.visualizer-bar {
 		width: 2px;
-		background-color: #4a5aba; /* or whatever color you need */
+		background-color: hsl(var(--gpthub-accent-hue, 250) 65% 58%);
 	}
 </style>

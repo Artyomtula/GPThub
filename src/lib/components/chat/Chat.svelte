@@ -463,6 +463,9 @@
 					}, 100);
 				} else if (type === 'chat:message:error') {
 					message.error = data.error;
+					message.done = true;
+					taskIds = null;
+					await processNextInQueue($chatId);
 				} else if (type === 'chat:message:follow_ups') {
 					message.followUps = data.follow_ups;
 
@@ -1621,6 +1624,17 @@
 
 		if (error) {
 			await handleOpenAIError(error, message);
+			if (!done) {
+				// Error delivered without an explicit done:true — force cleanup so
+				// taskIds is cleared and the user can send new messages.
+				chatCompletedHandler(
+					chatId,
+					message.model,
+					message.id,
+					createMessagesList(history, message.id)
+				);
+				await processNextInQueue(chatId);
+			}
 		}
 
 		if (sources && !message?.sources) {
@@ -1856,15 +1870,7 @@
 			}
 		}
 
-		if (history?.currentId) {
-			const currentMessage = history.messages[history.currentId];
-
-			if (currentMessage.error && !currentMessage.content) {
-				// Error in response
-				toast.error($i18n.t(`Oops! There was an error in the previous response.`));
-				return;
-			}
-		}
+		// Note: don't block submission after errors — user must be able to continue the conversation.
 
 		messageInput?.setText('');
 		prompt = '';
