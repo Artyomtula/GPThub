@@ -37,7 +37,8 @@
 	const getCapabilityIcon = (model: any): string => {
 		const text = `${(model?.id || '').toLowerCase()} ${(model?.name || '').toLowerCase()}`;
 		const caps = model?.info?.meta?.capabilities || {};
-		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text)) return 'image';
+		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text))
+			return 'image';
 		if (caps.vision || /\b(vision|vl\b|multimodal)\b/.test(text)) return 'vision';
 		if (caps.code || /\b(coder|code|program)\b/.test(text)) return 'code';
 		return 'text';
@@ -158,19 +159,31 @@
 												/>
 											</div>
 										{:else}
-										<div
-											class="size-9 @sm:size-10 rounded-full bg-white dark:bg-gray-750 border-[1px] border-gray-100 dark:border-gray-700 flex items-center justify-center"
-										>
-											{#if getCapabilityIcon(model) === 'image'}
-												<Photo className="size-5 text-gray-500 dark:text-gray-400" strokeWidth="1.6" />
-											{:else if getCapabilityIcon(model) === 'vision'}
-												<Eye className="size-5 text-gray-500 dark:text-gray-400" strokeWidth="1.6" />
-											{:else if getCapabilityIcon(model) === 'code'}
-												<CodeBracket className="size-5 text-gray-500 dark:text-gray-400" strokeWidth="1.6" />
-											{:else}
-												<Sparkles className="size-5 text-gray-500 dark:text-gray-400" strokeWidth="1.6" />
-											{/if}
-										</div>
+											<div
+												class="size-9 @sm:size-10 rounded-full bg-white dark:bg-gray-750 border-[1px] border-gray-100 dark:border-gray-700 flex items-center justify-center"
+											>
+												{#if getCapabilityIcon(model) === 'image'}
+													<Photo
+														className="size-5 text-gray-500 dark:text-gray-400"
+														strokeWidth="1.6"
+													/>
+												{:else if getCapabilityIcon(model) === 'vision'}
+													<Eye
+														className="size-5 text-gray-500 dark:text-gray-400"
+														strokeWidth="1.6"
+													/>
+												{:else if getCapabilityIcon(model) === 'code'}
+													<CodeBracket
+														className="size-5 text-gray-500 dark:text-gray-400"
+														strokeWidth="1.6"
+													/>
+												{:else}
+													<Sparkles
+														className="size-5 text-gray-500 dark:text-gray-400"
+														strokeWidth="1.6"
+													/>
+												{/if}
+											</div>
 										{/if}
 									</button>
 								</Tooltip>
@@ -213,37 +226,37 @@
 								className=" w-fit"
 								content={marked.parse(
 									sanitizeResponseContent(
-									$i18n.t(models[selectedModelIdx]?.info?.meta?.description ?? '')
-								).replaceAll('\n', '<br>')
-							)}
-							placement="top"
-						>
-							<div
-								class="mt-0.5 px-2 text-sm font-normal text-gray-500 dark:text-gray-400 line-clamp-2 max-w-xl markdown"
-							>
-								{@html marked.parse(
-									sanitizeResponseContent(
 										$i18n.t(models[selectedModelIdx]?.info?.meta?.description ?? '')
 									).replaceAll('\n', '<br>')
 								)}
-							</div>
-							{#if models[selectedModelIdx]?.info?.meta?.user}
-								<div class="mt-0.5 text-sm font-normal text-gray-400 dark:text-gray-500">
-									By
-									{#if models[selectedModelIdx]?.info?.meta?.user.community}
-										<a
-											href="https://openwebui.com/m/{models[selectedModelIdx]?.info?.meta?.user
-												.username}"
-											>{models[selectedModelIdx]?.info?.meta?.user.name
-												? models[selectedModelIdx]?.info?.meta?.user.name
-												: `@${models[selectedModelIdx]?.info?.meta?.user.username}`}</a
-										>
-									{:else}
-										{models[selectedModelIdx]?.info?.meta?.user.name}
-									{/if}
+								placement="top"
+							>
+								<div
+									class="mt-0.5 px-2 text-sm font-normal text-gray-500 dark:text-gray-400 line-clamp-2 max-w-xl markdown"
+								>
+									{@html marked.parse(
+										sanitizeResponseContent(
+											$i18n.t(models[selectedModelIdx]?.info?.meta?.description ?? '')
+										).replaceAll('\n', '<br>')
+									)}
 								</div>
-							{/if}
-						</Tooltip>
+								{#if models[selectedModelIdx]?.info?.meta?.user}
+									<div class="mt-0.5 text-sm font-normal text-gray-400 dark:text-gray-500">
+										By
+										{#if models[selectedModelIdx]?.info?.meta?.user.community}
+											<a
+												href="https://openwebui.com/m/{models[selectedModelIdx]?.info?.meta?.user
+													.username}"
+												>{models[selectedModelIdx]?.info?.meta?.user.name
+													? models[selectedModelIdx]?.info?.meta?.user.name
+													: `@${models[selectedModelIdx]?.info?.meta?.user.username}`}</a
+											>
+										{:else}
+											{models[selectedModelIdx]?.info?.meta?.user.name}
+										{/if}
+									</div>
+								{/if}
+							</Tooltip>
 						{/if}
 					</div>
 				</div>
