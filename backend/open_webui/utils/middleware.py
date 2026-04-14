@@ -1406,21 +1406,53 @@ async def chat_memory_handler(request: Request, form_data: dict, extra_params: d
         log.debug(e)
         results = None
 
+    def parse_structured_memory_text(doc_text: str) -> Optional[dict]:
+        try:
+            payload = json.loads(doc_text)
+            if isinstance(payload, dict) and payload.get('schema') == 'gpthub_memory_v1':
+                return payload
+        except Exception:
+            return None
+        return None
+
     user_context = ''
+    now_ts = int(time.time())
     if results and hasattr(results, 'documents'):
         if results.documents and len(results.documents) > 0:
             for doc_idx, doc in enumerate(results.documents[0]):
+                structured = parse_structured_memory_text(doc)
+                if structured:
+                    if structured.get('status') == 'inactive':
+                        continue
+                    expires_at = structured.get('expires_at')
+                    if isinstance(expires_at, int) and expires_at > 0 and now_ts > expires_at:
+                        continue
+
                 created_at_date = 'Unknown Date'
 
                 if results.metadatas[0][doc_idx].get('created_at'):
                     created_at_timestamp = results.metadatas[0][doc_idx]['created_at']
                     created_at_date = time.strftime('%Y-%m-%d', time.localtime(created_at_timestamp))
 
-                user_context += f'{doc_idx + 1}. [{created_at_date}] {doc}\n'
+                if structured:
+                    mem_type = str(structured.get('type') or 'fact')
+                    mem_value = str(structured.get('value') or '').strip()
+                    if not mem_value:
+                        continue
+                    confidence = structured.get('confidence')
+                    confidence_text = ''
+                    try:
+                        confidence_text = f" ({round(float(confidence), 2)})"
+                    except Exception:
+                        confidence_text = ''
+                    user_context += f'{doc_idx + 1}. [{created_at_date}] [{mem_type}{confidence_text}] {mem_value}\n'
+                else:
+                    user_context += f'{doc_idx + 1}. [{created_at_date}] {doc}\n'
 
-    form_data['messages'] = add_or_update_system_message(
-        f'User Context:\n{user_context}\n', form_data['messages'], append=True
-    )
+    if user_context.strip():
+        form_data['messages'] = add_or_update_system_message(
+            f'User Context:\n{user_context}\n', form_data['messages'], append=True
+        )
 
     return form_data
 
@@ -2507,6 +2539,18 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
     features = form_data.pop('features', None) or {}
     extra_params['__features__'] = features
+
+    # Auto memory read (long-term user context):
+    # enabled by default when memory subsystem is active, unless explicitly disabled
+    # by `features.memory = false`.
+    use_memory_context = (
+        request.app.state.config.ENABLE_MEMORIES
+        and metadata.get('params', {}).get('function_calling') != 'native'
+        and features.get('memory', True)
+    )
+    if use_memory_context:
+        form_data = await chat_memory_handler(request, form_data, extra_params, user)
+
     if features:
         if 'voice' in features and features['voice']:
             if request.app.state.config.VOICE_MODE_PROMPT_TEMPLATE != None:
@@ -2519,11 +2563,6 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                     template,
                     form_data['messages'],
                 )
-
-        if 'memory' in features and features['memory']:
-            # Skip forced memory injection when native FC is enabled - model can use memory tools
-            if metadata.get('params', {}).get('function_calling') != 'native':
-                form_data = await chat_memory_handler(request, form_data, extra_params, user)
 
         if 'web_search' in features and features['web_search']:
             # Skip forced RAG web search when native FC is enabled - model can use web_search tool
@@ -2541,10 +2580,11 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
         if 'code_interpreter' in features and features['code_interpreter']:
             engine = getattr(request.app.state.config, 'CODE_INTERPRETER_ENGINE', 'pyodide')
+            function_calling_mode = metadata.get('params', {}).get('function_calling')
 
             # Skip XML-tag prompt injection when native FC is enabled —
             # execute_code will be injected as a builtin tool instead
-            if metadata.get('params', {}).get('function_calling') != 'native':
+            if function_calling_mode != 'native':
                 prompt = (
                     request.app.state.config.CODE_INTERPRETER_PROMPT_TEMPLATE
                     if request.app.state.config.CODE_INTERPRETER_PROMPT_TEMPLATE != ''
@@ -2555,18 +2595,11 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 if engine != 'jupyter':
                     prompt += CODE_INTERPRETER_PYODIDE_PROMPT
 
-                form_data['messages'] = add_or_update_user_message(
+                form_data['messages'] = add_or_update_system_message(
                     prompt,
                     form_data['messages'],
+                    append=True,
                 )
-            else:
-                # Native FC: tool docstring can't be dynamic, so inject
-                # filesystem context into messages for pyodide engine
-                if engine != 'jupyter':
-                    form_data['messages'] = add_or_update_user_message(
-                        CODE_INTERPRETER_PYODIDE_PROMPT,
-                        form_data['messages'],
-                    )
 
     tool_ids = form_data.pop('tool_ids', None)
     terminal_id = form_data.pop('terminal_id', None)
@@ -4916,6 +4949,11 @@ async def streaming_chat_response_handler(response, ctx):
 
     else:
         # Fallback to the original response
+        if not hasattr(response, 'body_iterator'):
+            # Non-streaming responses (e.g. JSONResponse) do not expose body_iterator.
+            # Return them as-is to avoid stream-wrapper crashes.
+            return response
+
         async def stream_wrapper(original_generator, events):
             def wrap_item(item):
                 return f'data: {item}\n\n'

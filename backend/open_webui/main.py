@@ -114,6 +114,7 @@ from open_webui.models.functions import Functions
 from open_webui.models.models import Models
 from open_webui.models.users import UserModel, Users
 from open_webui.models.chats import Chats
+from open_webui.models.memories import Memories
 
 from open_webui.config import (
     # Ollama
@@ -573,6 +574,8 @@ from open_webui.utils.redis import get_sentinels_from_env
 
 
 from open_webui.constants import ERROR_MESSAGES
+from open_webui.retrieval.vector.factory import VECTOR_DB_CLIENT
+from open_webui.utils.access_control import has_permission
 
 if SAFE_MODE:
     print('SAFE MODE ENABLED')
@@ -1932,6 +1935,401 @@ def _pick_preferred_model_for_capability(
     return base_pick
 
 
+def _memory_enabled_for_user(request: Request, user: UserModel, features: dict | None) -> bool:
+    if not request.app.state.config.ENABLE_MEMORIES:
+        return False
+
+    # Allow explicit opt-out from client payload.
+    if isinstance(features, dict) and features.get('memory') is False:
+        return False
+
+    try:
+        return has_permission(user.id, 'features.memories', request.app.state.config.USER_PERMISSIONS)
+    except Exception:
+        return False
+
+
+def _extract_assistant_content_from_response(response: dict) -> str:
+    try:
+        choices = response.get('choices') or []
+        if not choices:
+            return ''
+        message = choices[0].get('message') or {}
+        content = message.get('content')
+        return content if isinstance(content, str) else ''
+    except Exception:
+        return ''
+
+
+def _normalize_memory_content(text: str) -> str:
+    cleaned = re.sub(r'\s+', ' ', (text or '')).strip()
+    return cleaned[:280]
+
+
+def _extract_json_object(text: str) -> dict | None:
+    if not text:
+        return None
+    text = text.strip()
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+
+    start = text.find('{')
+    end = text.rfind('}')
+    if start == -1 or end == -1 or end <= start:
+        return None
+    candidate = text[start : end + 1]
+    try:
+        parsed = json.loads(candidate)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        return None
+
+
+def _parse_memory_record(content: str) -> dict | None:
+    record = _extract_json_object(content)
+    if not record:
+        return None
+    if record.get('schema') != 'gpthub_memory_v1':
+        return None
+    if not isinstance(record.get('value'), str):
+        return None
+    return record
+
+
+def _is_memory_record_active(record: dict, now_ts: int | None = None) -> bool:
+    now_ts = now_ts or int(time.time())
+    if record.get('status') == 'inactive':
+        return False
+    expires_at = record.get('expires_at')
+    if isinstance(expires_at, int) and expires_at > 0 and now_ts > expires_at:
+        return False
+    return True
+
+
+def _build_memory_record(
+    fact_type: str,
+    value: str,
+    confidence: float,
+    ttl_days: int,
+) -> dict:
+    now_ts = int(time.time())
+    expires_at = now_ts + max(ttl_days, 1) * 86400 if ttl_days > 0 else None
+    return {
+        'schema': 'gpthub_memory_v1',
+        'type': fact_type,
+        'value': _normalize_memory_content(value),
+        'confidence': round(float(confidence), 3),
+        'status': 'active',
+        'source': 'llm_extractor',
+        'created_at': now_ts,
+        'updated_at': now_ts,
+        'last_seen': now_ts,
+        'ttl_days': int(ttl_days),
+        'expires_at': expires_at,
+    }
+
+
+def _memory_extractor_system_prompt(max_facts: int) -> str:
+    return (
+        "Ты извлекаешь только ДОЛГОСРОЧНЫЕ пользовательские факты из диалога.\n"
+        "Верни строго JSON без markdown:\n"
+        "{\n"
+        '  "facts": [\n'
+        "    {\n"
+        '      "type": "identity|preference|project|constraint|goal|profile",\n'
+        '      "value": "краткий факт от лица пользователя",\n'
+        '      "confidence": 0.0,\n'
+        '      "ttl_days": 30\n'
+        "    }\n"
+        "  ]\n"
+        "}\n"
+        f"Ограничение: максимум {max_facts} фактов.\n"
+        "Не извлекай временные, одноразовые и неопределенные данные."
+    )
+
+
+def _pick_memory_extractor_model(
+    selection_effective: dict,
+    available_models: dict[str, dict],
+    fallback_model_id: str,
+) -> str:
+    configured = os.getenv('MEMORY_EXTRACTION_MODEL', '').strip()
+    if configured and configured in available_models and not _is_non_chat_model(available_models.get(configured)):
+        return configured
+
+    capability_graph = selection_effective.get('capability_graph') or {}
+    for capability in ['text', 'code', 'vision']:
+        for model_id in capability_graph.get(capability, []):
+            model = available_models.get(model_id)
+            if model and not is_virtual_model(model) and not _is_non_chat_model(model):
+                return model_id
+
+    model = available_models.get(fallback_model_id)
+    if model and not is_virtual_model(model) and not _is_non_chat_model(model):
+        return fallback_model_id
+
+    for model_id, model in available_models.items():
+        if not is_virtual_model(model) and not _is_non_chat_model(model):
+            return model_id
+
+    return fallback_model_id
+
+
+async def _extract_long_term_memory_candidates_llm(
+    request: Request,
+    user: UserModel,
+    user_prompt: str,
+    assistant_content: str,
+    selection_effective: dict,
+    fallback_model_id: str,
+) -> list[dict]:
+    if not user_prompt:
+        return []
+
+    max_facts = max(1, int(os.getenv('MEMORY_EXTRACTION_MAX_FACTS', '4')))
+    extractor_model_id = _pick_memory_extractor_model(
+        selection_effective, request.app.state.MODELS, fallback_model_id
+    )
+
+    extraction_payload = {
+        'model': extractor_model_id,
+        'stream': False,
+        'messages': [
+            {'role': 'system', 'content': _memory_extractor_system_prompt(max_facts)},
+            {
+                'role': 'user',
+                'content': (
+                    f'User message:\n{user_prompt}\n\n'
+                    f'Assistant reply:\n{assistant_content or "(empty)"}\n'
+                ),
+            },
+        ],
+        'params': {'temperature': 0},
+        'features': {'memory': False, 'web_search': False, 'image_generation': False, 'code_interpreter': False},
+    }
+
+    try:
+        extraction_response = await chat_completion_handler(
+            request,
+            extraction_payload,
+            user,
+            bypass_filter=True,
+            bypass_system_prompt=True,
+        )
+    except Exception as e:
+        log.warning(f'memory extractor call failed: {e.__class__.__name__}: {e}')
+        return []
+
+    if not isinstance(extraction_response, dict):
+        return []
+
+    content = _extract_assistant_content_from_response(extraction_response)
+    parsed = _extract_json_object(content) or {}
+    facts = parsed.get('facts') if isinstance(parsed, dict) else None
+    if not isinstance(facts, list):
+        return []
+
+    min_conf = float(os.getenv('MEMORY_EXTRACTION_MIN_CONFIDENCE', '0.72'))
+    normalized_facts: list[dict] = []
+    for fact in facts[:max_facts]:
+        if not isinstance(fact, dict):
+            continue
+        fact_type = str(fact.get('type') or '').strip().lower()
+        value = _normalize_memory_content(str(fact.get('value') or ''))
+        if not fact_type or not value:
+            continue
+        try:
+            confidence = float(fact.get('confidence', 0.0))
+        except Exception:
+            confidence = 0.0
+        if confidence < min_conf:
+            continue
+        try:
+            ttl_days = int(fact.get('ttl_days', 180))
+        except Exception:
+            ttl_days = 180
+        ttl_days = max(7, min(ttl_days, 3650))
+        normalized_facts.append(
+            {
+                'type': fact_type,
+                'value': value,
+                'confidence': confidence,
+                'ttl_days': ttl_days,
+            }
+        )
+
+    return normalized_facts
+
+
+async def _store_long_term_memories(
+    request: Request,
+    user: UserModel,
+    candidates: list[dict],
+) -> int:
+    if not candidates:
+        return 0
+
+    existing = Memories.get_memories_by_user_id(user.id) or []
+    now_ts = int(time.time())
+    existing_records: list[tuple[Any, dict]] = []
+    for memory in existing:
+        record = _parse_memory_record(memory.content or '')
+        if not record:
+            continue
+        existing_records.append((memory, record))
+
+    inserted_count = 0
+    singleton_types = {
+        'identity',
+        'profile',
+        'timezone',
+        'city',
+        'role',
+        'project',
+        'goal',
+        'constraint',
+        'preference',
+    }
+
+    for candidate in candidates:
+        fact_type = str(candidate.get('type') or '').strip().lower()
+        value = _normalize_memory_content(str(candidate.get('value') or ''))
+        confidence = float(candidate.get('confidence') or 0.0)
+        ttl_days = int(candidate.get('ttl_days') or 180)
+
+        if not fact_type or not value:
+            continue
+
+        # 1) Update exact active match (same type + same normalized value)
+        exact_match = None
+        for mem, record in existing_records:
+            if not _is_memory_record_active(record, now_ts):
+                continue
+            if str(record.get('type', '')).lower() != fact_type:
+                continue
+            if _normalize_memory_content(str(record.get('value', ''))).lower() == value.lower():
+                exact_match = (mem, record)
+                break
+
+        if exact_match:
+            mem, record = exact_match
+            record['last_seen'] = now_ts
+            record['updated_at'] = now_ts
+            record['confidence'] = max(float(record.get('confidence') or 0.0), confidence)
+            record['ttl_days'] = max(int(record.get('ttl_days') or ttl_days), ttl_days)
+            if record.get('ttl_days', 0) > 0:
+                record['expires_at'] = now_ts + int(record['ttl_days']) * 86400
+
+            updated = Memories.update_memory_by_id_and_user_id(
+                mem.id, user.id, json.dumps(record, ensure_ascii=False)
+            )
+            if updated:
+                try:
+                    vector = await request.app.state.EMBEDDING_FUNCTION(record.get('value', ''), user=user)
+                    VECTOR_DB_CLIENT.upsert(
+                        collection_name=f'user-memory-{user.id}',
+                        items=[
+                            {
+                                'id': mem.id,
+                                'text': record.get('value', ''),
+                                'vector': vector,
+                                'metadata': {'created_at': updated.created_at, 'updated_at': updated.updated_at},
+                            }
+                        ],
+                    )
+                except Exception as e:
+                    log.warning(
+                        f'long-term memory embedding update failed: {e.__class__.__name__}: {e}'
+                    )
+            continue
+
+        # 2) Deactivate conflicting singleton fact of same type
+        if fact_type in singleton_types:
+            for mem, record in existing_records:
+                if not _is_memory_record_active(record, now_ts):
+                    continue
+                if str(record.get('type', '')).lower() != fact_type:
+                    continue
+                if _normalize_memory_content(str(record.get('value', ''))).lower() == value.lower():
+                    continue
+
+                record['status'] = 'inactive'
+                record['updated_at'] = now_ts
+                Memories.update_memory_by_id_and_user_id(
+                    mem.id, user.id, json.dumps(record, ensure_ascii=False)
+                )
+                try:
+                    VECTOR_DB_CLIENT.delete(collection_name=f'user-memory-{user.id}', ids=[mem.id])
+                except Exception:
+                    pass
+
+        # 3) Insert new active fact
+        new_record = _build_memory_record(fact_type, value, confidence, ttl_days)
+        memory = Memories.insert_new_memory(user.id, json.dumps(new_record, ensure_ascii=False))
+        if not memory:
+            continue
+
+        try:
+            vector = await request.app.state.EMBEDDING_FUNCTION(new_record['value'], user=user)
+            VECTOR_DB_CLIENT.upsert(
+                collection_name=f'user-memory-{user.id}',
+                items=[
+                    {
+                        'id': memory.id,
+                        'text': new_record['value'],
+                        'vector': vector,
+                        'metadata': {'created_at': memory.created_at, 'updated_at': memory.updated_at},
+                    }
+                ],
+            )
+            inserted_count += 1
+            existing_records.append((memory, new_record))
+        except Exception as e:
+            # Keep DB/vector consistency: rollback newly inserted memory if embedding failed.
+            Memories.delete_memory_by_id_and_user_id(memory.id, user.id)
+            log.warning(f'long-term memory embedding failed: {e.__class__.__name__}: {e}')
+
+    return inserted_count
+
+
+async def _run_long_term_memory_write(
+    request: Request,
+    user: UserModel,
+    metadata: dict,
+    form_data: dict,
+    model_id_for_fallback: str,
+    assistant_content: str = '',
+) -> int:
+    user_prompt = (metadata.get('user_prompt') or _extract_last_user_prompt(form_data) or '').strip()
+    if not user_prompt:
+        return 0
+
+    memory_candidates = await _extract_long_term_memory_candidates_llm(
+        request,
+        user,
+        user_prompt,
+        assistant_content,
+        metadata.get('selection_effective') or {},
+        metadata.get('selected_model_id') or form_data.get('model') or model_id_for_fallback,
+    )
+    inserted = await _store_long_term_memories(request, user, memory_candidates)
+    if inserted > 0:
+        log.info(f'long-term memory updated: inserted={inserted}, user_id={user.id}')
+        event_emitter = get_event_emitter(metadata)
+        if event_emitter:
+            await event_emitter(
+                {
+                    'type': 'chat:memory:updated',
+                    'data': {'inserted': inserted},
+                }
+            )
+    return inserted
+
+
 def _build_voice_ack_text(capability: str | None) -> str:
     if capability == 'image_generation':
         return 'Генерирую изображение, секунду.'
@@ -1946,6 +2344,36 @@ def _build_voice_ack_text(capability: str | None) -> str:
     if capability == 'research':
         return 'Запускаю исследование, собираю факты.'
     return 'Принял запрос, сейчас сделаю.'
+
+
+def _is_non_chat_model(model: dict | None) -> bool:
+    if not model:
+        return False
+
+    text = f"{(model.get('id') or '').lower()} {(model.get('name') or '').lower()}"
+    tags = model.get('tags') or []
+    tag_text = ' '.join(
+        [str(tag.get('name', '')).lower() for tag in tags if isinstance(tag, dict)]
+    )
+    text = f'{text} {tag_text}'
+
+    markers = [
+        'embedding',
+        'embeddings',
+        'embed',
+        'bge-',
+        '/bge',
+        'e5-',
+        'rerank',
+        'reranker',
+        'colbert',
+        'jina-emb',
+        'text-embedding',
+        'whisper',
+        'asr',
+        'transcrib',
+    ]
+    return any(marker in text for marker in markers)
 
 
 def _build_manual_mode_guidance_response(
@@ -1975,6 +2403,51 @@ def _build_manual_mode_guidance_response(
     selected_caps = infer_model_capabilities(selected_model)
     selected_model_name = selected_model.get('name') or resolved_model_id
 
+    if _is_non_chat_model(selected_model):
+        capability_graph = selection_effective.get('capability_graph') or {}
+
+        target_capability = requested_capability
+        if target_capability in {'web_search', 'research'}:
+            target_capability = 'text'
+
+        recommendation_candidates = capability_graph.get(target_capability) or capability_graph.get('text') or []
+        recommended_model_id = recommendation_candidates[0] if recommendation_candidates else ''
+        recommended_model = available_models.get(recommended_model_id) if recommended_model_id else None
+        recommended_model_name = (
+            (recommended_model.get('name') or recommended_model_id) if recommended_model else recommended_model_id
+        )
+
+        quick_action_line = "Рекомендую выбрать обычную LLM-модель или перейти в **Auto Mode**."
+        if recommended_model_name and recommended_model_id:
+            # Use a custom app scheme to avoid accidental hard navigation to a non-existent route.
+            # Frontend intercepts this URL and switches model in-place.
+            switch_href = f"gpthub://select-model?{urlencode({'model': recommended_model_id})}"
+            quick_action_line = f"[{recommended_model_name}]({switch_href})"
+
+        content = (
+            f"Сейчас выбрана модель **{selected_model_name}**, она предназначена не для обычного диалога, "
+            "а для специализированных задач (например, embeddings/поиск по векторам).\n\n"
+            "Из-за этого ответы могут быть пустыми или непредсказуемыми.\n\n"
+            f"{quick_action_line}"
+        )
+
+        return {
+            'id': f'chatcmpl-gpthub-guidance-{uuid4()}',
+            'object': 'chat.completion',
+            'created': int(time.time()),
+            'model': resolved_model_id,
+            'choices': [
+                {
+                    'index': 0,
+                    'message': {
+                        'role': 'assistant',
+                        'content': content,
+                    },
+                    'finish_reason': 'stop',
+                }
+            ],
+        }
+
     if requested_capability == 'image_generation' and not features.get('image_generation'):
         if 'image_generation' in selected_caps:
             # Model might support image generation natively via provider endpoint;
@@ -1983,17 +2456,25 @@ def _build_manual_mode_guidance_response(
 
         capability_graph = selection_effective.get('capability_graph') or {}
         image_candidates = capability_graph.get('image_generation') or []
-        recommended_model_id = image_candidates[0] if image_candidates else os.getenv('IMAGE_GENERATION_MODEL', '')
+        recommended_model_id = ''
+        if image_candidates:
+            recommended_model_id = image_candidates[0]
+        else:
+            configured_image_model = os.getenv('IMAGE_GENERATION_MODEL', '')
+            # Recommend only models that are actually available in the current runtime catalogue.
+            if configured_image_model in available_models:
+                recommended_model_id = configured_image_model
         recommended_model = available_models.get(recommended_model_id) if recommended_model_id else None
         recommended_model_name = (
             (recommended_model.get('name') or recommended_model_id) if recommended_model else recommended_model_id
         )
 
-        recommendation_line = (
-            f"Рекомендованная модель для изображений: **{recommended_model_name}**."
-            if recommended_model_name
-            else "Рекомендую включить режим **Image** или переключиться в **Auto Mode**."
-        )
+        quick_action_line = "Рекомендую включить режим **Image** или переключиться в **Auto Mode**."
+        if recommended_model_name and recommended_model_id:
+            # Use a custom app scheme to avoid accidental hard navigation to a non-existent route.
+            # Frontend intercepts this URL and switches model in-place.
+            switch_href = f"gpthub://select-model?{urlencode({'model': recommended_model_id})}"
+            quick_action_line = f"[{recommended_model_name}]({switch_href})"
 
         content = (
             f"Похоже, вы попросили сгенерировать изображение, но сейчас выбрана текстовая модель "
@@ -2001,7 +2482,7 @@ def _build_manual_mode_guidance_response(
             "Чтобы корректно получить картинку:\n"
             "1. Включите переключатель **Image** под полем ввода.\n"
             "2. Либо переключитесь в **Auto Mode**, чтобы система сама выбрала нужный маршрут.\n\n"
-            f"{recommendation_line}"
+            f"{quick_action_line}"
         )
 
         return {
@@ -2048,10 +2529,22 @@ async def _resolve_effective_model_selection(
         return True
 
     available_model_ids = [model_id for model_id in available_models.keys() if is_accessible(model_id)]
+    chat_compatible_model_ids = [
+        model_id
+        for model_id in available_model_ids
+        if (
+            (model := available_models.get(model_id))
+            and not is_virtual_model(model)
+            and not _is_non_chat_model(model)
+        )
+    ]
     non_arena_model_ids = [
         model_id
         for model_id, model in available_models.items()
-        if model.get('owned_by') != 'arena' and not is_virtual_model(model) and is_accessible(model_id)
+        if model.get('owned_by') != 'arena'
+        and not is_virtual_model(model)
+        and not _is_non_chat_model(model)
+        and is_accessible(model_id)
     ]
     capability_graph = build_capability_graph(available_models, non_arena_model_ids)
     last_user_prompt = _extract_last_user_prompt(form_data)
@@ -2212,6 +2705,10 @@ async def _resolve_effective_model_selection(
             resolved_model_id = non_arena_model_ids[0]
             resolved_capability = resolved_capability or 'text'
             resolution_reason = 'auto_fallback_first_available'
+        elif chat_compatible_model_ids:
+            resolved_model_id = chat_compatible_model_ids[0]
+            resolved_capability = resolved_capability or 'text'
+            resolution_reason = 'auto_fallback_first_chat_compatible'
         elif available_model_ids:
             resolved_model_id = available_model_ids[0]
             resolved_capability = resolved_capability or 'text'
@@ -2510,6 +3007,34 @@ async def chat_completion(
                 resolved_model_id = metadata.get('selection_effective', {}).get('resolved_model_id')
                 if resolved_model_id:
                     response['selected_model_id'] = resolved_model_id
+
+            # Long-term memory write: supports both non-stream and stream responses.
+            try:
+                if _memory_enabled_for_user(request, user, metadata.get('features') or {}):
+                    assistant_content = _extract_assistant_content_from_response(response) if isinstance(response, dict) else ''
+                    if isinstance(response, StreamingResponse):
+                        # Do not block streaming latency with extraction/upsert.
+                        asyncio.create_task(
+                            _run_long_term_memory_write(
+                                request,
+                                user,
+                                metadata,
+                                form_data,
+                                model_id,
+                                assistant_content='',
+                            )
+                        )
+                    else:
+                        await _run_long_term_memory_write(
+                            request,
+                            user,
+                            metadata,
+                            form_data,
+                            model_id,
+                            assistant_content=assistant_content,
+                        )
+            except Exception as e:
+                log.warning(f'long-term memory write skipped: {e.__class__.__name__}: {e}')
             if metadata.get('chat_id') and metadata.get('message_id'):
                 try:
                     if not metadata['chat_id'].startswith('local:'):

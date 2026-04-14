@@ -1515,8 +1515,14 @@ def save_docs_to_vector_db(
         log.info(f'added {len(items)} items to collection {collection_name}')
         return True
     except Exception as e:
-        log.exception(e)
-        raise e
+        # Web-search pipeline already has a graceful fallback to inline docs.
+        # Keep logs concise here to avoid noisy full tracebacks on transient
+        # network failures (e.g. embedding provider resets connection).
+        log.warning(
+            f'save_docs_to_vector_db failed for {collection_name}: '
+            f'{e.__class__.__name__}: {e}'
+        )
+        raise
 
 
 class ProcessFileForm(BaseModel):
@@ -2299,7 +2305,7 @@ async def process_web_search(request: Request, form_data: SearchForm, user=Depen
         else:
             # Create a single collection for all documents
             collection_name = f'web-search-{calculate_sha256_string("-".join(form_data.queries))}'[:63]
-
+            saved_to_vector_db = True
             try:
                 await run_in_threadpool(
                     save_docs_to_vector_db,
@@ -2310,7 +2316,25 @@ async def process_web_search(request: Request, form_data: SearchForm, user=Depen
                     user=user,
                 )
             except Exception as e:
-                log.debug(f'error saving docs: {e}')
+                saved_to_vector_db = False
+                log.warning(f'web search: vector db save failed, falling back to inline docs: {e}')
+
+            if not saved_to_vector_db:
+                return {
+                    'status': True,
+                    'collection_name': None,
+                    'filenames': urls,
+                    'items': result_items,
+                    'docs': [
+                        {
+                            'content': doc.page_content,
+                            'metadata': doc.metadata,
+                        }
+                        for doc in docs
+                    ],
+                    'loaded_count': len(docs),
+                    'fallback': 'inline_docs',
+                }
 
             return {
                 'status': True,

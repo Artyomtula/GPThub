@@ -693,6 +693,24 @@
 		}
 	};
 
+	const onModelSelectFromChat = (event: Event) => {
+		const customEvent = event as CustomEvent<{ modelId?: string }>;
+		const modelId = customEvent?.detail?.modelId;
+		if (!modelId) return;
+
+		const modelExists = $models.some((model) => model.id === modelId);
+		if (!modelExists) {
+			toast.error($i18n.t('Model {{modelId}} not found', { modelId }));
+			return;
+		}
+
+		atSelectedModel = undefined;
+		modelSelectionMode = 'manual';
+		selectedModels = [modelId];
+
+		toast.success($i18n.t('Model switched to {{modelId}}', { modelId }));
+	};
+
 	const savedModelIds = async () => {
 		if (
 			$selectedFolder &&
@@ -722,8 +740,9 @@
 		loading = true;
 		console.log('mounted');
 
-		window.addEventListener('message', onMessageHandler);
-		$socket?.on('events', chatEventHandler);
+			window.addEventListener('message', onMessageHandler);
+			window.addEventListener('gpthub:model-select', onModelSelectFromChat as EventListener);
+			$socket?.on('events', chatEventHandler);
 
 		$audioQueue?.destroy();
 
@@ -837,10 +856,11 @@
 		return () => {
 			try {
 				pageSubscribe();
-				showControlsSubscribe();
-				selectedFolderSubscribe();
-				window.removeEventListener('message', onMessageHandler);
-				$socket?.off('events', chatEventHandler);
+					showControlsSubscribe();
+					selectedFolderSubscribe();
+					window.removeEventListener('message', onMessageHandler);
+					window.removeEventListener('gpthub:model-select', onModelSelectFromChat as EventListener);
+					$socket?.off('events', chatEventHandler);
 				audioQueueInstance?.destroy();
 				audioQueue.set(null);
 			} catch (e) {
