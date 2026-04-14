@@ -65,7 +65,7 @@
 	import PinnedModelList from './Sidebar/PinnedModelList.svelte';
 	import Note from '../icons/Note.svelte';
 	import { fly } from 'svelte/transition';
-	import { cubicOut } from 'svelte/easing';
+	import { cubicOut, cubicIn } from 'svelte/easing';
 	import HotkeyHint from '../common/HotkeyHint.svelte';
 
 	const BREAKPOINT = 768;
@@ -901,7 +901,7 @@
 			: ' transition-all duration-300 '} shrink-0 text-gray-900 dark:text-gray-200 text-sm fixed top-0 left-0 overflow-x-hidden
         "
 		in:fly={{ x: -$sidebarWidth, duration: 320, easing: cubicOut }}
-		out:fly={{ x: -$sidebarWidth, duration: 320, easing: cubicOut }}
+		out:fly={{ x: -$sidebarWidth, duration: 320, easing: cubicIn }}
 		data-state={$showSidebar}
 	>
 		<div
@@ -1123,7 +1123,7 @@
 						bind:open={showFolders}
 						className="px-2 mt-0.5"
 						name={$i18n.t('Folders')}
-						chevron={false}
+						chevron={true}
 						onAdd={() => {
 							showCreateFolderModal = true;
 						}}
@@ -1175,7 +1175,7 @@
 					id="sidebar-chats"
 					className="px-2 mt-0.5"
 					name={$i18n.t('Chats')}
-					chevron={false}
+					chevron={true}
 					on:change={async (e) => {
 						selectedFolder.set(null);
 					}}

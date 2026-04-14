@@ -31,7 +31,6 @@ from open_webui.utils.gpthub_models import (
 
 from open_webui.config import (
     BYPASS_ADMIN_ACCESS_CONTROL,
-    DEFAULT_ARENA_MODEL,
 )
 
 from open_webui.env import BYPASS_MODEL_ACCESS_CONTROL, GLOBAL_LOG_LEVEL
@@ -98,41 +97,6 @@ async def get_all_models(request, refresh: bool = False, user: UserModel = None)
     # If there are no base models, still return virtual models
     if len(models) == 0:
         return prepend_virtual_models([])
-
-    # Add arena models
-    if request.app.state.config.ENABLE_EVALUATION_ARENA_MODELS:
-        arena_models = []
-        if len(request.app.state.config.EVALUATION_ARENA_MODELS) > 0:
-            arena_models = [
-                {
-                    'id': model['id'],
-                    'name': model['name'],
-                    'info': {
-                        'meta': model['meta'],
-                    },
-                    'object': 'model',
-                    'created': int(time.time()),
-                    'owned_by': 'arena',
-                    'arena': True,
-                }
-                for model in request.app.state.config.EVALUATION_ARENA_MODELS
-            ]
-        else:
-            # Add default arena model
-            arena_models = [
-                {
-                    'id': DEFAULT_ARENA_MODEL['id'],
-                    'name': DEFAULT_ARENA_MODEL['name'],
-                    'info': {
-                        'meta': DEFAULT_ARENA_MODEL['meta'],
-                    },
-                    'object': 'model',
-                    'created': int(time.time()),
-                    'owned_by': 'arena',
-                    'arena': True,
-                }
-            ]
-        models = models + arena_models
 
     global_action_ids = {function.id for function in Functions.get_global_action_functions()}
     enabled_action_ids = {function.id for function in Functions.get_functions_by_type('action', active_only=True)}

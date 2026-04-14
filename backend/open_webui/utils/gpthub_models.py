@@ -184,8 +184,6 @@ def build_capability_graph(
             continue
         if is_virtual_model(model):
             continue
-        if model.get('owned_by') == 'arena':
-            continue
 
         inferred_caps = infer_model_capabilities(model)
         for capability in inferred_caps:

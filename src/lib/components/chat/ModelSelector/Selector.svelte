@@ -29,6 +29,7 @@
 	import Eye from '$lib/components/icons/Eye.svelte';
 	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
 	import BookOpen from '$lib/components/icons/BookOpen.svelte';
+	import ChatBubbleOval from '$lib/components/icons/ChatBubbleOval.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
 	import ModelItem from './ModelItem.svelte';
@@ -513,7 +514,7 @@
 								strokeWidth="1.8"
 							/>
 						{:else}
-							<Sparkles
+							<ChatBubbleOval
 								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
 								strokeWidth="1.8"
 							/>
@@ -532,7 +533,7 @@
 								strokeWidth="1.8"
 							/>
 						{:else}
-							<Sparkles
+							<ChatBubbleOval
 								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
 								strokeWidth="1.8"
 							/>
@@ -562,7 +563,7 @@
 							{...props}
 							class="{props.class} z-40 {$mobile
 								? `w-full`
-								: `${className}`} max-w-[calc(100vw-1rem)] justify-start rounded-2xl bg-white/85 dark:bg-gray-850/85 backdrop-blur-xl dark:text-white shadow-lg outline-hidden"
+								: `${className}`} max-w-[calc(100vw-1rem)] justify-start rounded-2xl bg-white/85 dark:bg-gray-850/85 backdrop-blur-xl dark:text-white shadow-lg outline-hidden border border-gray-200/60 dark:border-gray-800/60"
 							transition:flyAndScale
 						>
 							<slot>

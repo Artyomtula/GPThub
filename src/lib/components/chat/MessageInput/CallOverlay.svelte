@@ -390,10 +390,10 @@
 
 						currentUtterance = new SpeechSynthesisUtterance(content);
 						currentUtterance.rate = $settings.audio?.tts?.playbackRate ?? 1;
-						currentUtterance.lang = $i18n.resolvedLanguage ?? 'ru-RU';
 
 						if (voice) {
 							currentUtterance.voice = voice;
+							currentUtterance.lang = voice.lang;
 						}
 
 						speechSynthesis.speak(currentUtterance);
@@ -722,42 +722,13 @@
 						{emoji}
 					</div>
 				{:else if loading || assistantSpeaking}
-					<svg
-						class="size-12 text-gray-900 dark:text-gray-400"
-						viewBox="0 0 24 24"
-						fill="currentColor"
-						xmlns="http://www.w3.org/2000/svg"
-						><style>
-							.spinner_qM83 {
-								animation: spinner_8HQG 1.05s infinite;
-							}
-							.spinner_oXPr {
-								animation-delay: 0.1s;
-							}
-							.spinner_ZTLf {
-								animation-delay: 0.2s;
-							}
-							@keyframes spinner_8HQG {
-								0%,
-								57.14% {
-									animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1);
-									transform: translate(0);
-								}
-								28.57% {
-									animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33);
-									transform: translateY(-6px);
-								}
-								100% {
-									transform: translate(0);
-								}
-							}
-						</style><circle class="spinner_qM83" cx="4" cy="12" r="3" /><circle
-							class="spinner_qM83 spinner_oXPr"
-							cx="12"
-							cy="12"
-							r="3"
-						/><circle class="spinner_qM83 spinner_ZTLf" cx="20" cy="12" r="3" /></svg
-					>
+					<div class="voice-wave voice-wave-sm">
+						<span style="--i:0"></span>
+						<span style="--i:1"></span>
+						<span style="--i:2"></span>
+						<span style="--i:3"></span>
+						<span style="--i:4"></span>
+					</div>
 				{:else}
 					<div
 						class=" {rmsLevel * 100 > 4
@@ -798,42 +769,15 @@
 							{emoji}
 						</div>
 					{:else if loading || assistantSpeaking}
-						<svg
-							class="size-44 text-gray-900 dark:text-gray-400"
-							viewBox="0 0 24 24"
-							fill="currentColor"
-							xmlns="http://www.w3.org/2000/svg"
-							><style>
-								.spinner_qM83 {
-									animation: spinner_8HQG 1.05s infinite;
-								}
-								.spinner_oXPr {
-									animation-delay: 0.1s;
-								}
-								.spinner_ZTLf {
-									animation-delay: 0.2s;
-								}
-								@keyframes spinner_8HQG {
-									0%,
-									57.14% {
-										animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1);
-										transform: translate(0);
-									}
-									28.57% {
-										animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33);
-										transform: translateY(-6px);
-									}
-									100% {
-										transform: translate(0);
-									}
-								}
-							</style><circle class="spinner_qM83" cx="4" cy="12" r="3" /><circle
-								class="spinner_qM83 spinner_oXPr"
-								cx="12"
-								cy="12"
-								r="3"
-							/><circle class="spinner_qM83 spinner_ZTLf" cx="20" cy="12" r="3" /></svg
-						>
+						<div class="voice-wave voice-wave-lg">
+							<span style="--i:0"></span>
+							<span style="--i:1"></span>
+							<span style="--i:2"></span>
+							<span style="--i:3"></span>
+							<span style="--i:4"></span>
+							<span style="--i:5"></span>
+							<span style="--i:6"></span>
+						</div>
 					{:else}
 						<div
 							class=" {rmsLevel * 100 > 4
@@ -995,3 +939,60 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	/* Voice wave animation bars */
+	.voice-wave {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 3px;
+	}
+
+	.voice-wave span {
+		display: inline-block;
+		border-radius: 9999px;
+		background: currentColor;
+		will-change: transform, opacity;
+		transform-origin: center;
+		animation: voice-wave-bar 1.2s ease-in-out calc(var(--i) * 0.15s) infinite;
+	}
+
+	/* Small variant (camera mode) */
+	.voice-wave-sm {
+		height: 3rem;
+		color: rgb(107 114 128);
+	}
+	:global(.dark) .voice-wave-sm {
+		color: rgb(156 163 175);
+	}
+	.voice-wave-sm span {
+		width: 4px;
+		height: 12px;
+	}
+
+	/* Large variant (full-screen mode) */
+	.voice-wave-lg {
+		height: 11rem;
+		color: rgb(107 114 128);
+	}
+	:global(.dark) .voice-wave-lg {
+		color: rgb(156 163 175);
+	}
+	.voice-wave-lg span {
+		width: 8px;
+		height: 24px;
+	}
+
+	@keyframes voice-wave-bar {
+		0%,
+		100% {
+			transform: scaleY(1);
+			opacity: 0.5;
+		}
+		50% {
+			transform: scaleY(2.8);
+			opacity: 1;
+		}
+	}
+</style>

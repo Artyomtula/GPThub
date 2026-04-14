@@ -176,7 +176,8 @@
 		imageGenerationEnabled,
 		webSearchEnabled,
 		deepResearchEnabled,
-		codeInterpreterEnabled
+		codeInterpreterEnabled,
+		presentationEnabled
 	});
 
 	const inputVariableHandler = async (text: string): Promise<string> => {
@@ -588,7 +589,7 @@
 			status: 'uploading',
 			size: file.size,
 			error: '',
-			uploadProgress: null as number | null,
+			uploadProgress: 0 as number | null,
 			itemId: tempItemId,
 			...itemData
 		};
@@ -1244,7 +1245,7 @@
 							id="message-input-container"
 							class="flex-1 flex flex-col relative w-full shadow-lg rounded-3xl border {$temporaryChatEnabled
 								? 'border-dashed border-gray-100 dark:border-gray-800 hover:border-gray-200 focus-within:border-gray-200 hover:dark:border-gray-700 focus-within:dark:border-gray-700'
-								: ' border-gray-100/30 dark:border-gray-850/30 hover:border-gray-200 focus-within:border-gray-100 hover:dark:border-gray-800 focus-within:dark:border-gray-800'}  transition px-1 bg-white/5 dark:bg-gray-500/5 backdrop-blur-sm dark:text-gray-100"
+								: ' border-gray-200/60 dark:border-gray-800/60 hover:border-gray-300 focus-within:border-gray-300 hover:dark:border-gray-700 focus-within:dark:border-gray-700'}  transition px-1 bg-white dark:bg-gray-850/40 backdrop-blur-sm dark:text-gray-100"
 							dir={$settings?.chatDirection ?? 'auto'}
 						>
 							{#if atSelectedModel !== undefined}
@@ -1522,6 +1523,7 @@
 															deepResearchEnabled = false;
 															imageGenerationEnabled = false;
 															codeInterpreterEnabled = false;
+															presentationEnabled = false;
 														}
 													}}
 													on:paste={async (e) => {
@@ -1762,7 +1764,7 @@
 													type="button"
 													class="group p-[7px] flex gap-1.5 items-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden max-w-full overflow-hidden {webSearchEnabled ||
 													($settings?.webSearch ?? false) === 'always'
-														? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-600/10 border border-sky-200/40 dark:border-sky-500/20'
+														? 'accent-pill-active border'
 														: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
 												>
 													<GlobeAlt className="size-4" strokeWidth="1.75" />
@@ -1781,7 +1783,7 @@
 													}}
 													type="button"
 													class="group p-[7px] flex gap-1.5 items-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden max-w-full overflow-hidden {deepResearchEnabled
-														? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-700/10 border border-sky-200/40 dark:border-sky-500/20'
+														? 'accent-pill-active border'
 														: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
 												>
 													<BookOpen className="size-4" strokeWidth="1.75" />
@@ -1799,7 +1801,7 @@
 														(imageGenerationEnabled = !imageGenerationEnabled)}
 													type="button"
 													class="group p-[7px] flex gap-1.5 items-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden max-w-full overflow-hidden {imageGenerationEnabled
-														? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-700/10 border border-sky-200/40 dark:border-sky-500/20'
+														? 'accent-pill-active border'
 														: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
 												>
 													<Photo className="size-4" strokeWidth="1.75" />
@@ -1821,7 +1823,7 @@
 														(codeInterpreterEnabled = !codeInterpreterEnabled)}
 													type="button"
 													class=" group p-[7px] flex gap-1.5 items-center text-sm transition-colors duration-300 max-w-full overflow-hidden {codeInterpreterEnabled
-														? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-700/10 border border-sky-200/40 dark:border-sky-500/20'
+														? 'accent-pill-active border'
 														: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '} {($settings?.highContrastMode ??
 													false)
 														? 'm-1'
@@ -1829,6 +1831,37 @@
 												>
 													<Terminal className="size-3.5" strokeWidth="2" />
 
+													<div class="hidden group-hover:block">
+														<XMark className="size-4" strokeWidth="1.75" />
+													</div>
+												</button>
+											</Tooltip>
+										{/if}
+
+										{#if presentationEnabled}
+											<Tooltip content={$i18n.t('Presentation')} placement="top">
+												<button
+													on:click|preventDefault={() =>
+														(presentationEnabled = !presentationEnabled)}
+													type="button"
+													class="group p-[7px] flex gap-1.5 items-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden max-w-full overflow-hidden {presentationEnabled
+														? 'accent-pill-active border'
+														: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														class="size-4"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke-width="1.75"
+														stroke="currentColor"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h12A2.25 2.25 0 0 0 20.25 14.25V3M3.75 3h16.5M3.75 21h16.5M12 3v18"
+														/>
+													</svg>
 													<div class="hidden group-hover:block">
 														<XMark className="size-4" strokeWidth="1.75" />
 													</div>
@@ -2075,3 +2108,22 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	.accent-pill-active {
+		color: hsl(var(--gpthub-accent-hue, 250) 60% 45%);
+		background-color: hsl(var(--gpthub-accent-hue, 250) 70% 60% / 0.08);
+		border-color: hsl(var(--gpthub-accent-hue, 250) 60% 60% / 0.3);
+	}
+	:global(.dark) .accent-pill-active {
+		color: hsl(var(--gpthub-accent-hue, 250) 65% 75%);
+		background-color: hsl(var(--gpthub-accent-hue, 250) 60% 50% / 0.1);
+		border-color: hsl(var(--gpthub-accent-hue, 250) 60% 50% / 0.2);
+	}
+	.accent-pill-active:hover {
+		background-color: hsl(var(--gpthub-accent-hue, 250) 70% 60% / 0.15);
+	}
+	:global(.dark) .accent-pill-active:hover {
+		background-color: hsl(var(--gpthub-accent-hue, 250) 60% 50% / 0.15);
+	}
+</style>

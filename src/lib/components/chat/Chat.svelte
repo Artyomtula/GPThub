@@ -283,6 +283,14 @@
 		selectedToolIds = [];
 		selectedFilterIds = [];
 		pendingOAuthTools = [];
+
+		// Preserve user-toggled feature states across model changes.
+		// setDefaults() will re-apply model-specific defaults if appropriate.
+		const prevDeepResearch = deepResearchEnabled;
+		const prevWebSearch = webSearchEnabled;
+		const prevCodeInterpreter = codeInterpreterEnabled;
+		const prevPresentation = presentationEnabled;
+
 		webSearchEnabled = false;
 		deepResearchEnabled = false;
 		imageGenerationEnabled = true;
@@ -290,7 +298,13 @@
 		presentationEnabled = false;
 
 		if (selectedModelIds.filter((id) => id).length > 0) {
-			setDefaults();
+			setDefaults().then(() => {
+				// Restore user toggles if the user had them on
+				if (prevDeepResearch) deepResearchEnabled = true;
+				if (prevWebSearch) webSearchEnabled = true;
+				if (prevCodeInterpreter) codeInterpreterEnabled = true;
+				if (prevPresentation) presentationEnabled = true;
+			});
 		}
 	};
 
@@ -427,7 +441,7 @@
 		if (!text || typeof window === 'undefined') return;
 		try {
 			const utterance = new SpeechSynthesisUtterance(text);
-			utterance.lang = $i18n.resolvedLanguage ?? 'ru-RU';
+
 			utterance.rate = $settings?.audio?.tts?.playbackRate ?? 1;
 			window.speechSynthesis.speak(utterance);
 		} catch (error) {
@@ -786,8 +800,7 @@
 					if (value) {
 						controlPaneComponent?.openPane();
 					} else {
-						// Delay collapse so the Svelte fly-out animation (200ms) plays first
-						setTimeout(() => controlPane?.collapse(), 220);
+						controlPaneComponent?.closePane();
 					}
 				} catch (e) {
 					// ignore
@@ -901,7 +914,8 @@
 			status: 'uploading',
 			error: '',
 			itemId: tempItemId,
-			size: 0
+			size: 0,
+			uploadProgress: null
 		};
 
 		try {
@@ -971,7 +985,10 @@
 
 			// Upload file to server
 			console.log('Uploading file to server...');
-			const uploadedFile = await uploadFile(localStorage.token, file, metadata);
+			const uploadedFile = await uploadFile(localStorage.token, file, metadata, (p) => {
+				fileItem.uploadProgress = p;
+				files = files;
+			});
 
 			if (!uploadedFile) {
 				throw new Error('Server returned null response for file upload');
@@ -1152,9 +1169,6 @@
 		const availableModels = $models
 			.filter((m) => !(m?.info?.meta?.hidden ?? false))
 			.map((m) => m.id);
-		const availableNonArenaModels = $models
-			.filter((m) => !(m?.info?.meta?.hidden ?? false) && m?.owned_by !== 'arena')
-			.map((m) => m.id);
 
 		const defaultModels = $config?.default_models ? $config?.default_models.split(',') : [];
 
@@ -1313,17 +1327,12 @@
 			showControls.set(true);
 		}
 
-		// In auto mode avoid arena wrapper as the default/fallback selected model.
+		// In auto mode ensure the default/fallback selected model is available.
 		if (modelSelectionMode === 'auto') {
 			const firstSelectedModelId = selectedModels?.[0];
-			const firstSelectedModel = $models.find((m) => m.id === firstSelectedModelId);
-			if (
-				!firstSelectedModelId ||
-				firstSelectedModel?.owned_by === 'arena' ||
-				!availableModels.includes(firstSelectedModelId)
-			) {
-				if (availableNonArenaModels.length > 0) {
-					selectedModels = [availableNonArenaModels[0]];
+			if (!firstSelectedModelId || !availableModels.includes(firstSelectedModelId)) {
+				if (availableModels.length > 0) {
+					selectedModels = [availableModels[0]];
 				}
 			}
 		}
@@ -1815,7 +1824,6 @@
 
 		if (selected_model_id) {
 			message.selectedModelId = selected_model_id;
-			message.arena = true;
 		}
 
 		if (usage) {

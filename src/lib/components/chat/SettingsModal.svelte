@@ -428,7 +428,7 @@
 			keywords: [
 				'about app',
 				'about me',
-				'about open webui',
+				'about gpthub',
 				'about page',
 				'about us',
 				'aboutapp',

@@ -5,7 +5,6 @@
 	const dispatch = createEventDispatcher();
 
 	import ChevronDown from '../icons/ChevronDown.svelte';
-	import ChevronRight from '../icons/ChevronRight.svelte';
 	import Collapsible from './Collapsible.svelte';
 	import Tooltip from './Tooltip.svelte';
 	import Plus from '../icons/Plus.svelte';
@@ -154,12 +153,11 @@
 				>
 					<button class="w-full py-1.5 pl-2 flex items-center gap-1.5 text-xs font-medium">
 						{#if chevron}
-							<div class=" p-[1px]">
-								{#if open}
-									<ChevronDown className=" size-3" strokeWidth="2" />
-								{:else}
-									<ChevronRight className=" size-3" strokeWidth="2" />
-								{/if}
+							<div
+								class="p-[1px] transition-transform duration-200 ease-out"
+								style="transform: rotate({open ? '0' : '-90'}deg)"
+							>
+								<ChevronDown className="size-3" strokeWidth="2" />
 							</div>
 						{/if}
 

@@ -248,7 +248,6 @@
 
 					const speech = new SpeechSynthesisUtterance(content);
 					speech.rate = $settings.audio?.tts?.playbackRate ?? 1;
-					speech.lang = $i18n.resolvedLanguage ?? 'ru-RU';
 
 					console.log(speech);
 
@@ -790,7 +789,7 @@
 							id="response-content-container"
 						>
 							{#if message.content === '' && !message.done && !message.error && !hasVisibleStatus}
-								<Skeleton />
+								<Skeleton label={$i18n.t('Thinking...')} />
 							{:else if message.content && message.error !== true}
 								<!-- always show message contents even if there's an error -->
 								<!-- unless message.error === true which is legacy error handling, where the error message is stored in message.content -->

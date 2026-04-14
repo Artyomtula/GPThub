@@ -18,7 +18,6 @@
 	import Documents from './Settings/Documents.svelte';
 	import WebSearch from './Settings/WebSearch.svelte';
 
-	import Evaluations from './Settings/Evaluations.svelte';
 	import CodeExecution from './Settings/CodeExecution.svelte';
 	import Integrations from './Settings/Integrations.svelte';
 
@@ -124,12 +123,6 @@
 				'import',
 				'export'
 			]
-		},
-		{
-			id: 'evaluations',
-			title: 'Evaluations',
-			route: '/admin/settings/evaluations',
-			keywords: ['evaluations', 'feedback', 'rating', 'arena', 'leaderboard', 'preference']
 		},
 		{
 			id: 'integrations',
@@ -523,8 +516,6 @@
 			/>
 		{:else if selectedTab === 'models'}
 			<Models />
-		{:else if selectedTab === 'evaluations'}
-			<Evaluations />
 		{:else if selectedTab === 'integrations'}
 			<Integrations />
 		{:else if selectedTab === 'documents'}

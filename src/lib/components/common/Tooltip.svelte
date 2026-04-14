@@ -22,6 +22,7 @@
 	export let allowHTML = true;
 	export let tippyOptions: Partial<TippyProps> = {};
 	export let interactive = false;
+	export let delay: [number, number] = [0, 0];
 
 	export let onClick = () => {};
 
@@ -61,6 +62,7 @@
 					...(theme !== '' ? { theme } : { theme: 'dark' }),
 					arrow: false,
 					offset,
+					delay,
 					...(interactive ? { interactive: true } : {}),
 					...tippyOptions
 				});

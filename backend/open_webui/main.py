@@ -70,6 +70,7 @@ from open_webui.socket.main import (
 )
 from open_webui.routers import (
     analytics,
+    evaluations,
     audio,
     images,
     ollama,
@@ -90,7 +91,6 @@ from open_webui.routers import (
     models,
     knowledge,
     prompts,
-    evaluations,
     skills,
     tools,
     users,
@@ -387,7 +387,6 @@ from open_webui.config import (
     ENABLE_COMMUNITY_SHARING,
     ENABLE_MESSAGE_RATING,
     ENABLE_USER_WEBHOOKS,
-    ENABLE_EVALUATION_ARENA_MODELS,
     BYPASS_ADMIN_ACCESS_CONTROL,
     USER_PERMISSIONS,
     DEFAULT_USER_ROLE,
@@ -397,11 +396,9 @@ from open_webui.config import (
     DEFAULT_PROMPT_SUGGESTIONS,
     DEFAULT_MODELS,
     DEFAULT_PINNED_MODELS,
-    DEFAULT_ARENA_MODEL,
     MODEL_ORDER_LIST,
     DEFAULT_MODEL_METADATA,
     DEFAULT_MODEL_PARAMS,
-    EVALUATION_ARENA_MODELS,
     # WebUI (OAuth)
     ENABLE_OAUTH_ROLE_MANAGEMENT,
     OAUTH_SUB_CLAIM,
@@ -720,7 +717,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title='Open WebUI',
+    title='GPThub',
     docs_url='/docs' if ENV == 'dev' else None,
     openapi_url='/openapi.json' if ENV == 'dev' else None,
     redoc_url=None,
@@ -883,9 +880,6 @@ app.state.config.ENABLE_MESSAGE_RATING = ENABLE_MESSAGE_RATING
 app.state.config.ENABLE_USER_WEBHOOKS = ENABLE_USER_WEBHOOKS
 app.state.config.ENABLE_USER_STATUS = ENABLE_USER_STATUS
 
-app.state.config.ENABLE_EVALUATION_ARENA_MODELS = ENABLE_EVALUATION_ARENA_MODELS
-app.state.config.EVALUATION_ARENA_MODELS = EVALUATION_ARENA_MODELS
-
 # Migrate legacy access_control → access_grants on boot
 from open_webui.utils.access_control import migrate_access_control
 
@@ -894,12 +888,6 @@ if any('access_control' in c.get('config', {}) for c in connections):
     for connection in connections:
         migrate_access_control(connection.get('config', {}))
     app.state.config.TOOL_SERVER_CONNECTIONS = connections
-
-arena_models = app.state.config.EVALUATION_ARENA_MODELS
-if any('access_control' in m.get('meta', {}) for m in arena_models):
-    for model in arena_models:
-        migrate_access_control(model.get('meta', {}))
-    app.state.config.EVALUATION_ARENA_MODELS = arena_models
 
 app.state.config.OAUTH_SUB_CLAIM = OAUTH_SUB_CLAIM
 app.state.config.OAUTH_USERNAME_CLAIM = OAUTH_USERNAME_CLAIM
@@ -1528,9 +1516,9 @@ app.include_router(folders.router, prefix='/api/v1/folders', tags=['folders'])
 app.include_router(groups.router, prefix='/api/v1/groups', tags=['groups'])
 app.include_router(files.router, prefix='/api/v1/files', tags=['files'])
 app.include_router(functions.router, prefix='/api/v1/functions', tags=['functions'])
-app.include_router(evaluations.router, prefix='/api/v1/evaluations', tags=['evaluations'])
 if ENABLE_ADMIN_ANALYTICS:
     app.include_router(analytics.router, prefix='/api/v1/analytics', tags=['analytics'])
+app.include_router(evaluations.router, prefix='/api/v1/evaluations', tags=['evaluations'])
 app.include_router(utils.router, prefix='/api/v1/utils', tags=['utils'])
 app.include_router(terminals.router, prefix='/api/v1/terminals', tags=['terminals'])
 
@@ -1626,7 +1614,7 @@ async def embeddings(request: Request, form_data: dict, user=Depends(get_verifie
 
     This handler:
       - Performs user/model checks and dispatches to the correct backend.
-      - Supports OpenAI, Ollama, arena models, pipelines, and any compatible provider.
+      - Supports OpenAI, Ollama, pipelines, and any compatible provider.
 
     Args:
         request (Request): Request context.
@@ -1741,7 +1729,7 @@ def _select_router_model_id(
     configured_router_model_id = os.getenv('GPTHUB_ROUTER_MODEL_ID', '').strip()
     if configured_router_model_id and configured_router_model_id in accessible_model_ids:
         model = available_models.get(configured_router_model_id)
-        if model and not is_virtual_model(model) and model.get('owned_by') != 'arena':
+        if model and not is_virtual_model(model):
             return configured_router_model_id
 
     preferred_patterns = (
@@ -1757,7 +1745,7 @@ def _select_router_model_id(
         for model_id in accessible_model_ids:
             if pattern in model_id.lower():
                 model = available_models.get(model_id)
-                if model and not is_virtual_model(model) and model.get('owned_by') != 'arena':
+                if model and not is_virtual_model(model):
                     return model_id
 
     return accessible_model_ids[0] if accessible_model_ids else None
@@ -2502,6 +2490,52 @@ def _build_manual_mode_guidance_response(
             ],
         }
 
+    # --- Presentation capability mismatch ---
+    if requested_capability == 'presentation' and not features.get('presentation'):
+        quick_action_line = "Рекомендую включить переключатель **Presentation** или переключиться в **Auto Mode**."
+        content = (
+            f"Похоже, вы попросили создать презентацию, но сейчас выбрана модель "
+            f"**{selected_model_name}** без включённого режима презентации.\n\n"
+            "Чтобы создать PPTX-файл:\n"
+            "1. Включите переключатель **Presentation** под полем ввода.\n"
+            "2. Либо переключитесь в **Auto Mode**.\n\n"
+            f"{quick_action_line}"
+        )
+        return {
+            'id': f'chatcmpl-gpthub-guidance-{uuid4()}',
+            'object': 'chat.completion',
+            'created': int(time.time()),
+            'model': resolved_model_id,
+            'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': content}, 'finish_reason': 'stop'}],
+        }
+
+    # --- Vision capability mismatch ---
+    if requested_capability == 'vision' and 'vision' not in selected_caps:
+        capability_graph = selection_effective.get('capability_graph') or {}
+        vision_candidates = capability_graph.get('vision') or []
+        recommended_model_id = vision_candidates[0] if vision_candidates else ''
+        recommended_model = available_models.get(recommended_model_id) if recommended_model_id else None
+        recommended_model_name = (
+            (recommended_model.get('name') or recommended_model_id) if recommended_model else ''
+        )
+
+        quick_action_line = "Рекомендую переключиться в **Auto Mode** для автоматического выбора."
+        if recommended_model_name and recommended_model_id:
+            switch_href = f"gpthub://select-model?{urlencode({'model': recommended_model_id})}"
+            quick_action_line = f"Попробуйте [{recommended_model_name}]({switch_href}) или **Auto Mode**."
+
+        content = (
+            f"Модель **{selected_model_name}** не поддерживает анализ изображений.\n\n"
+            f"{quick_action_line}"
+        )
+        return {
+            'id': f'chatcmpl-gpthub-guidance-{uuid4()}',
+            'object': 'chat.completion',
+            'created': int(time.time()),
+            'model': resolved_model_id,
+            'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': content}, 'finish_reason': 'stop'}],
+        }
+
     return None
 
 
@@ -2538,15 +2572,14 @@ async def _resolve_effective_model_selection(
             and not _is_non_chat_model(model)
         )
     ]
-    non_arena_model_ids = [
+    routable_model_ids = [
         model_id
         for model_id, model in available_models.items()
-        if model.get('owned_by') != 'arena'
-        and not is_virtual_model(model)
+        if not is_virtual_model(model)
         and not _is_non_chat_model(model)
         and is_accessible(model_id)
     ]
-    capability_graph = build_capability_graph(available_models, non_arena_model_ids)
+    capability_graph = build_capability_graph(available_models, routable_model_ids)
     last_user_prompt = _extract_last_user_prompt(form_data)
     features = form_data.get('features') or {}
     prefer_deep_research = bool(features.get('deep_research') or features.get('research'))
@@ -2577,7 +2610,7 @@ async def _resolve_effective_model_selection(
         # Explicit real model in manual mode always wins.
         for requested_model_id in requested_model_ids:
             candidate = available_models.get(requested_model_id)
-            if not candidate or is_virtual_model(candidate) or candidate.get('owned_by') == 'arena':
+            if not candidate or is_virtual_model(candidate):
                 continue
             if is_accessible(requested_model_id):
                 resolved_model_id = requested_model_id
@@ -2591,14 +2624,14 @@ async def _resolve_effective_model_selection(
 
     if resolved_model_id is None and requested_capability:
         if should_route_with_model:
-            router_model_id = _select_router_model_id(available_models, non_arena_model_ids)
+            router_model_id = _select_router_model_id(available_models, routable_model_ids)
 
             if router_model_id:
                 # Build a flat catalogue of all available models with their
                 # capabilities so the router can pick the best one directly.
                 max_candidates = _env_int('GPTHUB_ROUTER_MAX_CANDIDATES', 16)
                 model_catalogue = []
-                for model_id in non_arena_model_ids[:max_candidates]:
+                for model_id in routable_model_ids[:max_candidates]:
                     if model_id == router_model_id:
                         continue
                     model = available_models.get(model_id, {})
@@ -2659,7 +2692,7 @@ async def _resolve_effective_model_selection(
 
                         if (
                             isinstance(candidate_model_id, str)
-                            and candidate_model_id in non_arena_model_ids
+                            and candidate_model_id in routable_model_ids
                             and not is_virtual_model_id(candidate_model_id)
                         ):
                             resolved_model_id = candidate_model_id
@@ -2701,8 +2734,8 @@ async def _resolve_effective_model_selection(
             display_model_id = requested_virtual_model_id
 
     if resolved_model_id is None and mode == 'auto':
-        if non_arena_model_ids:
-            resolved_model_id = non_arena_model_ids[0]
+        if routable_model_ids:
+            resolved_model_id = routable_model_ids[0]
             resolved_capability = resolved_capability or 'text'
             resolution_reason = 'auto_fallback_first_available'
         elif chat_compatible_model_ids:
@@ -3185,7 +3218,7 @@ async def generate_messages(
     pipeline, then converts the response back to Anthropic Messages format.
 
     Supports both streaming and non-streaming requests.
-    All models configured in Open WebUI are accessible via this endpoint.
+    All models configured in GPThub are accessible via this endpoint.
 
     Authentication: Supports both standard Authorization header and
     Anthropic's x-api-key header (via middleware translation).
@@ -3505,7 +3538,7 @@ async def get_app_changelog():
 @app.get('/api/usage')
 async def get_current_usage(user=Depends(get_verified_user)):
     """
-    Get current usage statistics for Open WebUI.
+    Get current usage statistics for GPThub.
     This is an experimental endpoint and subject to change.
     """
     try:

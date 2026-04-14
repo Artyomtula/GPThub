@@ -384,7 +384,7 @@
 			id="sidebar-chat-item"
 			class=" w-full flex justify-between rounded-xl px-[11px] py-[6px] {id === $chatId ||
 			confirmEdit
-				? 'bg-gray-100 dark:bg-gray-900 selected'
+				? 'bg-gray-200/60 dark:bg-gray-800/50 selected font-medium'
 				: selected
 					? 'bg-gray-100 dark:bg-gray-950 selected'
 					: 'group-hover:bg-gray-100 dark:group-hover:bg-gray-950'}  whitespace-nowrap text-ellipsis relative {generating
@@ -420,7 +420,7 @@
 			id="sidebar-chat-item"
 			class=" w-full flex justify-between rounded-xl px-[11px] py-[6px] {id === $chatId ||
 			confirmEdit
-				? 'bg-gray-100 dark:bg-gray-900 selected'
+				? 'bg-gray-200/60 dark:bg-gray-800/50 selected font-medium'
 				: selected
 					? 'bg-gray-100 dark:bg-gray-950 selected'
 					: ' group-hover:bg-gray-100 dark:group-hover:bg-gray-950'}  whitespace-nowrap text-ellipsis"
@@ -479,7 +479,7 @@
 		id="sidebar-chat-item-menu"
 		class="
         {id === $chatId || confirmEdit
-			? 'from-gray-100 dark:from-gray-900 selected'
+			? 'from-gray-200/60 dark:from-gray-800/50 selected'
 			: selected
 				? 'from-gray-100 dark:from-gray-950 selected'
 				: 'invisible group-hover:visible from-gray-100 dark:from-gray-950'}

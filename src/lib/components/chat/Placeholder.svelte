@@ -30,6 +30,7 @@
 	import CodeBracket from '$lib/components/icons/CodeBracket.svelte';
 	import Photo from '$lib/components/icons/Photo.svelte';
 	import Eye from '$lib/components/icons/Eye.svelte';
+	import ChatBubbleOval from '$lib/components/icons/ChatBubbleOval.svelte';
 	import MessageInput from './MessageInput.svelte';
 	import FolderPlaceholder from './Placeholder/FolderPlaceholder.svelte';
 	import FolderTitle from './Placeholder/FolderTitle.svelte';
@@ -179,7 +180,7 @@
 														strokeWidth="1.6"
 													/>
 												{:else}
-													<Sparkles
+													<ChatBubbleOval
 														className="size-5 text-gray-500 dark:text-gray-400"
 														strokeWidth="1.6"
 													/>
@@ -199,15 +200,9 @@
 						{#if modelSelectionMode === 'auto'}
 							<span class="line-clamp-1">Auto Mode</span>
 						{:else if models[selectedModelIdx]?.name}
-							<Tooltip
-								content={models[selectedModelIdx]?.name}
-								placement="top"
-								className=" flex items-center "
-							>
-								<span class="line-clamp-1">
-									{models[selectedModelIdx]?.name}
-								</span>
-							</Tooltip>
+							<span class="line-clamp-1">
+								{models[selectedModelIdx]?.name}
+							</span>
 						{:else}
 							{$i18n.t('Hello, {{name}}', { name: $user?.name })}
 						{/if}

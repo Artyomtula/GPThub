@@ -1,12 +1,7 @@
 <script>
 	import { io } from 'socket.io-client';
-	import { spring } from 'svelte/motion';
 	import PyodideWorker from '$lib/workers/pyodide.worker?worker';
 	import { Toaster, toast } from 'svelte-sonner';
-
-	let loadingProgress = spring(0, {
-		stiffness: 0.05
-	});
 
 	import { onMount, tick, setContext, onDestroy } from 'svelte';
 	import {
@@ -124,6 +119,7 @@
 
 		_socket.on('connect_error', (err) => {
 			console.log('connect_error', err);
+			toast.error($i18n.t('Connection error. Retrying...'));
 		});
 
 		_socket.on('connect', async () => {
@@ -176,6 +172,7 @@
 
 		_socket.on('reconnect_failed', () => {
 			console.log('reconnect_failed');
+			toast.error($i18n.t('Connection lost. Please refresh the page.'));
 		});
 
 		_socket.on('disconnect', (reason, details) => {
@@ -975,35 +972,8 @@
 
 		await tick();
 
-		if (
-			document.documentElement.classList.contains('her') &&
-			document.getElementById('progress-bar')
-		) {
-			loadingProgress.subscribe((value) => {
-				const progressBar = document.getElementById('progress-bar');
-
-				if (progressBar) {
-					progressBar.style.width = `${value}%`;
-				}
-			});
-
-			await loadingProgress.set(100);
-
-			document.getElementById('splash-screen')?.remove();
-
-			const audio = new Audio(`/audio/greeting.mp3`);
-			const playAudio = () => {
-				audio.play();
-				document.removeEventListener('click', playAudio);
-			};
-
-			document.addEventListener('click', playAudio);
-
-			loaded = true;
-		} else {
-			document.getElementById('splash-screen')?.remove();
-			loaded = true;
-		}
+		document.getElementById('splash-screen')?.remove();
+		loaded = true;
 
 		// Auto-show SyncStatsModal when opened with ?sync=true (from community)
 		if (
