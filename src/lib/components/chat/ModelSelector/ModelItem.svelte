@@ -57,7 +57,8 @@
 	const getCapabilityIcon = (model: any): string => {
 		const text = `${(model?.id || '').toLowerCase()} ${(model?.name || '').toLowerCase()}`;
 		const caps = model?.info?.meta?.capabilities || {};
-		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text)) return 'image';
+		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text))
+			return 'image';
 		if (caps.vision || /\b(vision|vl\b|multimodal)\b/.test(text)) return 'vision';
 		if (caps.code || /\b(coder|code|program)\b/.test(text)) return 'code';
 		return 'text';
@@ -105,13 +106,18 @@
 						content={$user?.role === 'admin' ? (item?.value ?? '') : ''}
 						placement="top-start"
 					>
-						<div class="size-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+						<div
+							class="size-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0"
+						>
 							{#if getCapabilityIcon(item.model) === 'image'}
 								<Photo className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
 							{:else if getCapabilityIcon(item.model) === 'vision'}
 								<Eye className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
 							{:else if getCapabilityIcon(item.model) === 'code'}
-								<CodeBracket className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+								<CodeBracket
+									className="size-3 text-gray-600 dark:text-gray-300"
+									strokeWidth="1.8"
+								/>
 							{:else}
 								<Sparkles className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
 							{/if}
@@ -204,7 +210,10 @@
 				{#if item.model?.info?.meta?.description}
 					<Tooltip
 						content={`${marked.parse(
-							sanitizeResponseContent($i18n.t(item.model?.info?.meta?.description)).replaceAll('\n', '<br>')
+							sanitizeResponseContent($i18n.t(item.model?.info?.meta?.description)).replaceAll(
+								'\n',
+								'<br>'
+							)
 						)}`}
 					>
 						<div class=" translate-y-[1px]">

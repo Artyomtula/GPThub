@@ -230,7 +230,6 @@
 		};
 		init();
 
-
 		return () => {
 			isDestroyed = true;
 			paneReady = false;

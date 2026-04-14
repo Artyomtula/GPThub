@@ -34,7 +34,8 @@
 	const getCapabilityIcon = (model: any): string => {
 		const text = `${(model?.id || '').toLowerCase()} ${(model?.name || '').toLowerCase()}`;
 		const caps = model?.info?.meta?.capabilities || {};
-		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text)) return 'image';
+		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text))
+			return 'image';
 		if (caps.vision || /\b(vision|vl\b|multimodal)\b/.test(text)) return 'vision';
 		if (caps.code || /\b(coder|code|program)\b/.test(text)) return 'code';
 		return 'text';
@@ -486,13 +487,22 @@
 						/>
 					{:else if selectedModel}
 						{#if getCapabilityIcon(selectedModel.model) === 'image'}
-							<Photo className="size-4 shrink-0 text-gray-500 dark:text-gray-400" strokeWidth="1.8" />
+							<Photo
+								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
+								strokeWidth="1.8"
+							/>
 						{:else if getCapabilityIcon(selectedModel.model) === 'vision'}
 							<Eye className="size-4 shrink-0 text-gray-500 dark:text-gray-400" strokeWidth="1.8" />
 						{:else if getCapabilityIcon(selectedModel.model) === 'code'}
-							<CodeBracket className="size-4 shrink-0 text-gray-500 dark:text-gray-400" strokeWidth="1.8" />
+							<CodeBracket
+								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
+								strokeWidth="1.8"
+							/>
 						{:else}
-							<Sparkles className="size-4 shrink-0 text-gray-500 dark:text-gray-400" strokeWidth="1.8" />
+							<Sparkles
+								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
+								strokeWidth="1.8"
+							/>
 						{/if}
 					{/if}
 					<span class="truncate">{triggerLabel}</span>
