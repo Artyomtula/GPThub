@@ -26,7 +26,7 @@
 
 	<div slot="content">
 		<div
-			class="min-w-[180px] rounded-lg p-1 border border-gray-100 dark:border-gray-800 z-[9999] bg-white dark:bg-gray-900 dark:text-white shadow-xs"
+			class="min-w-[180px] rounded-lg p-1 border border-gray-100 dark:border-gray-800 z-[9999] bg-white/85 dark:bg-gray-900/85 backdrop-blur-xl dark:text-white shadow-xs"
 		>
 			{#each devices as device}
 				<button

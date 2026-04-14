@@ -125,7 +125,7 @@
 </script>
 
 <div id="tab-account" class="flex flex-col h-full justify-between text-sm">
-	<div class=" overflow-y-scroll max-h-[28rem] md:max-h-full">
+	<div class=" overflow-y-auto scrollbar-hidden h-full">
 		<div class="space-y-1">
 			<div>
 				<div class="text-base font-medium">{$i18n.t('Your Account')}</div>

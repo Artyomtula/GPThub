@@ -31,7 +31,7 @@
 	{items}
 	{placeholder}
 	triggerClass="relative w-full"
-	contentClass="w-full rounded-lg bg-white dark:bg-gray-900 dark:text-white shadow-lg border border-gray-300/30 dark:border-gray-700/40 outline-hidden"
+	contentClass="w-full rounded-lg bg-white/85 dark:bg-gray-900/85 backdrop-blur-xl dark:text-white shadow-lg border border-gray-300/30 dark:border-gray-700/40 outline-hidden"
 	onClose={() => {
 		searchValue = '';
 	}}

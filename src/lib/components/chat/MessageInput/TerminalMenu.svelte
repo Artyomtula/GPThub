@@ -111,7 +111,7 @@
 
 		<div slot="content">
 			<div
-				class="min-w-56 max-w-56 rounded-2xl px-1 py-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg max-h-72 overflow-y-auto overflow-x-hidden scrollbar-thin"
+				class="min-w-56 max-w-56 rounded-2xl px-1 py-1 border border-gray-100 dark:border-gray-800 z-50 bg-white/85 dark:bg-gray-850/85 backdrop-blur-xl dark:text-white shadow-lg max-h-72 overflow-y-auto overflow-x-hidden scrollbar-thin"
 			>
 				<!-- Direct terminals (gated by permission) -->
 				{#if directTerminals.length > 0 && ($user?.role === 'admin' || ($user?.permissions?.features?.direct_tool_servers ?? true))}

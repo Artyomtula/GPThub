@@ -111,7 +111,7 @@
 				class=" absolute {showButtons ? '' : 'invisible group-hover:visible'} right-1 -top-2 z-10"
 			>
 				<div
-					class="flex gap-1 rounded-lg bg-white dark:bg-gray-850 shadow-md p-0.5 border border-gray-100/30 dark:border-gray-850/30"
+					class="flex gap-1 rounded-lg bg-white/85 dark:bg-gray-850/85 backdrop-blur-xl shadow-md p-0.5 border border-gray-100/30 dark:border-gray-850/30"
 				>
 					{#if onReaction}
 						<EmojiPicker

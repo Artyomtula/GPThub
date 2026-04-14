@@ -40,7 +40,7 @@
 
 	<div slot="content">
 		<div
-			class="min-w-[180px] rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-sm"
+			class="min-w-[180px] rounded-xl p-1 border border-gray-100 dark:border-gray-800 z-50 bg-white/85 dark:bg-gray-850/85 backdrop-blur-xl dark:text-white shadow-sm"
 		>
 			{#if ['filter', 'action'].includes(func.type)}
 				<div

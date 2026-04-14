@@ -27,7 +27,7 @@
 {#if user}
 	<LinkPreview.Portal>
 		<LinkPreview.Content
-			class="w-[260px] rounded-2xl border border-gray-100  dark:border-gray-800 z-[9999] bg-white dark:bg-gray-850 dark:text-white shadow-lg transition"
+			class="w-[260px] rounded-2xl border border-gray-100  dark:border-gray-800 z-[9999] bg-white/85 dark:bg-gray-850/85 backdrop-blur-xl dark:text-white shadow-lg transition"
 			{side}
 			{align}
 			{sideOffset}

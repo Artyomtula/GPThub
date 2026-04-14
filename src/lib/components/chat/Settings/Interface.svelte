@@ -103,6 +103,12 @@
 	let showManageImageCompressionModal = false;
 
 	let textScale = null;
+	let accentHue = 18;
+
+	const applyAccentHue = () => {
+		document.documentElement.style.setProperty('--gpthub-accent-hue', String(accentHue));
+		saveSettings({ accentHue });
+	};
 
 	const toggleLandingPageMode = async () => {
 		landingPageMode = landingPageMode === '' ? 'chat' : '';
@@ -273,6 +279,8 @@
 		webSearch = $settings?.webSearch ?? null;
 
 		textScale = $settings?.textScale ?? null;
+		accentHue = $settings?.accentHue ?? 18;
+		document.documentElement.style.setProperty('--gpthub-accent-hue', String(accentHue));
 	});
 </script>
 
@@ -329,9 +337,25 @@
 		}}
 	/>
 
-	<div class=" space-y-3 overflow-y-scroll max-h-[28rem] md:max-h-full">
+	<div class=" space-y-3 overflow-y-auto scrollbar-hidden h-full">
 		<div>
 			<h1 class=" mb-2 text-sm font-medium">{$i18n.t('UI')}</h1>
+
+			<div class="py-0.5 flex w-full items-center justify-between gap-4">
+				<label class="shrink-0 text-xs" for="accent-hue-slider">
+					{$i18n.t('Accent Color')}
+				</label>
+				<input
+					id="accent-hue-slider"
+					class="gpthub-hue-slider flex-1 max-w-40"
+					type="range"
+					min="0"
+					max="360"
+					step="1"
+					bind:value={accentHue}
+					on:input={applyAccentHue}
+				/>
+			</div>
 
 			<div>
 				<div class="py-0.5 flex w-full justify-between">

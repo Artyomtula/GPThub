@@ -4,7 +4,7 @@
 
 <script lang="ts">
 	import { SvelteFlowProvider } from '@xyflow/svelte';
-	import { slide } from 'svelte/transition';
+	import { fly } from 'svelte/transition';
 	import { Pane, PaneResizer } from 'paneforge';
 	import { v4 as uuidv4 } from 'uuid';
 
@@ -230,8 +230,6 @@
 		};
 		init();
 
-		document.addEventListener('mousedown', onMouseDown);
-		document.addEventListener('mouseup', onMouseUp);
 
 		return () => {
 			isDestroyed = true;
@@ -241,8 +239,6 @@
 				showControls.set(false);
 			}
 			mediaQuery.removeEventListener('change', handleMediaQuery);
-			document.removeEventListener('mousedown', onMouseDown);
-			document.removeEventListener('mouseup', onMouseUp);
 		};
 	});
 
@@ -404,10 +400,14 @@
 			if (paneReady) showControls.set(false);
 		}}
 		collapsible={true}
-		class="z-10 bg-white dark:bg-gray-850"
+		class="z-10 bg-white dark:bg-gray-850 overflow-hidden"
 	>
 		{#if $showControls}
-			<div class="flex max-h-full min-h-full">
+			<div
+				class="flex max-h-full min-h-full"
+				in:fly={{ x: 360, duration: 200, delay: 20 }}
+				out:fly={{ x: 360, duration: 200 }}
+			>
 				<div
 					class="w-full {specialPanel && !$showCallOverlay
 						? ' '
@@ -527,3 +527,7 @@
 		{/if}
 	</Pane>
 {/if}
+
+<style>
+	/* Right controls panel uses Svelte fly transition; see in/out:fly on content wrapper */
+</style>

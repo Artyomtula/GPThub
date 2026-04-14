@@ -45,7 +45,7 @@
 </script>
 
 <div id="tab-about" class="flex flex-col h-full justify-between space-y-3 text-sm mb-6">
-	<div class=" space-y-3 overflow-y-scroll max-h-[28rem] md:max-h-full">
+	<div class=" space-y-3 overflow-y-auto scrollbar-hidden h-full">
 		<div>
 			<div class=" mb-2.5 text-sm font-medium flex space-x-2 items-center">
 				<div>
@@ -114,7 +114,7 @@
 
 		{#if $config?.license_metadata}
 			<div class="mb-2 text-xs">
-				{#if !$WEBUI_NAME.includes('Open WebUI')}
+				{#if !$WEBUI_NAME.includes('GPThub')}
 					<span class=" text-gray-500 dark:text-gray-300 font-medium">{$WEBUI_NAME}</span> -
 				{/if}
 
@@ -157,7 +157,7 @@
 				class="text-xs text-gray-400 dark:text-gray-500">Copyright (c) {new Date().getFullYear()} <a
 					href="https://openwebui.com"
 					target="_blank"
-					class="underline">Open WebUI Inc.</a
+					class="underline">GPThub Inc.</a
 				> <a href="https://github.com/open-webui/open-webui/blob/main/LICENSE" target="_blank"
 					>All rights reserved.</a
 				>

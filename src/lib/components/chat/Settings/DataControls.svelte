@@ -174,7 +174,7 @@
 />
 
 <div id="tab-chats" class="flex flex-col h-full justify-between text-sm">
-	<div class="space-y-3 overflow-y-scroll max-h-[28rem] md:max-h-full">
+	<div class="space-y-3 overflow-y-auto scrollbar-hidden h-full">
 		<input
 			id="chat-import-input"
 			bind:this={chatImportInputElement}
