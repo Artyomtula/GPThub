@@ -16,6 +16,7 @@
 	import Tag from '$lib/components/icons/Tag.svelte';
 	import Cloud from '$lib/components/icons/Cloud.svelte';
 	import Computer from '$lib/components/icons/Computer.svelte';
+	import UserCircle from '$lib/components/icons/UserCircle.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -101,6 +102,12 @@
 							}}
 						/>
 					</Tooltip>
+				</div>
+			{:else}
+				<div
+					class="size-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0"
+				>
+					<UserCircle className="size-3.5 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
 				</div>
 			{/if}
 

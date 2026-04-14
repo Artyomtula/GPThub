@@ -22,6 +22,8 @@
 	import Check from '$lib/components/icons/Check.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
 	import InfoCircle from '$lib/components/icons/InfoCircle.svelte';
+	import Sparkles from '$lib/components/icons/Sparkles.svelte';
+	import UserCircle from '$lib/components/icons/UserCircle.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
 	import ModelItem from './ModelItem.svelte';
@@ -452,8 +454,25 @@
 				);
 			}}
 		>
-			{triggerLabel}
-			<ChevronDown className=" self-center ml-2 size-3" strokeWidth="2.5" />
+			{#if triggerLabel === placeholder}
+				{triggerLabel}
+			{:else}
+				<span class="flex items-center gap-1.5 min-w-0 truncate">
+					{#if showAutoMode && mode === 'auto'}
+						<Sparkles
+							className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
+							strokeWidth="1.8"
+						/>
+					{:else if value.startsWith('gpthub:')}
+						<UserCircle
+							className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
+							strokeWidth="1.8"
+						/>
+					{/if}
+					<span class="truncate">{triggerLabel}</span>
+				</span>
+			{/if}
+			<ChevronDown className=" self-center ml-2 size-3 shrink-0" strokeWidth="2.5" />
 		</div>
 	</DropdownMenu.Trigger>
 
@@ -528,12 +547,14 @@
 											}}
 										>
 											<div class="min-w-0 flex items-center gap-2">
-												<img
-													src="/favicon.png"
-													alt={$i18n.t('Auto mode icon')}
-													class="rounded-full size-5 flex items-center"
-													loading="lazy"
-												/>
+												<div
+													class="size-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0"
+												>
+													<Sparkles
+														className="size-3 text-gray-600 dark:text-gray-300"
+														strokeWidth="1.8"
+													/>
+												</div>
 												<div class="flex items-center gap-1.5">
 													<div class="line-clamp-1">{$i18n.t('Auto Mode')}</div>
 													<Tooltip

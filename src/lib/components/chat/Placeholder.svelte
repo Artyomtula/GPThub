@@ -25,6 +25,8 @@
 	import Suggestions from './Suggestions.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import EyeSlash from '$lib/components/icons/EyeSlash.svelte';
+	import Sparkles from '$lib/components/icons/Sparkles.svelte';
+	import UserCircle from '$lib/components/icons/UserCircle.svelte';
 	import MessageInput from './MessageInput.svelte';
 	import FolderPlaceholder from './Placeholder/FolderPlaceholder.svelte';
 	import FolderTitle from './Placeholder/FolderTitle.svelte';
@@ -125,15 +127,35 @@
 											selectedModelIdx = modelIdx;
 										}}
 									>
-										<img
-											src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}`}
-											class=" size-9 @sm:size-10 rounded-full border-[1px] border-gray-100 dark:border-none"
-											aria-hidden="true"
-											draggable="false"
-											on:error={(e) => {
-												e.currentTarget.src = '/favicon.png';
-											}}
-										/>
+										{#if modelSelectionMode === 'auto'}
+											<div
+												class="size-9 @sm:size-10 rounded-full bg-white dark:bg-gray-750 border-[1px] border-gray-100 dark:border-gray-700 flex items-center justify-center"
+											>
+												<Sparkles
+													className="size-5 text-gray-500 dark:text-gray-400"
+													strokeWidth="1.6"
+												/>
+											</div>
+										{:else if model?.id?.startsWith('gpthub:')}
+											<div
+												class="size-9 @sm:size-10 rounded-full bg-white dark:bg-gray-750 border-[1px] border-gray-100 dark:border-gray-700 flex items-center justify-center"
+											>
+												<UserCircle
+													className="size-5 text-gray-500 dark:text-gray-400"
+													strokeWidth="1.6"
+												/>
+											</div>
+										{:else}
+											<img
+												src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}`}
+												class=" size-9 @sm:size-10 rounded-full border-[1px] border-gray-100 dark:border-none"
+												aria-hidden="true"
+												draggable="false"
+												on:error={(e) => {
+													e.currentTarget.src = '/favicon.png';
+												}}
+											/>
+										{/if}
 									</button>
 								</Tooltip>
 							{/each}

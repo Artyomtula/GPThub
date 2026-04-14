@@ -404,7 +404,7 @@
 			if (paneReady) showControls.set(false);
 		}}
 		collapsible={true}
-		class="z-10 bg-white dark:bg-gray-850"
+		class="z-10 bg-white dark:bg-gray-850 {dragged ? '' : 'controls-pane-animated'}"
 	>
 		{#if $showControls}
 			<div class="flex max-h-full min-h-full">
@@ -527,3 +527,9 @@
 		{/if}
 	</Pane>
 {/if}
+
+<style>
+	:global([data-pane].controls-pane-animated) {
+		transition: flex-grow 300ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+</style>

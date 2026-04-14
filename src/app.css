@@ -323,7 +323,7 @@ select {
 		oklch(0.4 0.24 8) 45%,
 		transparent 72%
 	);
-	animation: blob-move-1 10s ease-in-out infinite;
+	animation: blob-move-1 5s ease-in-out infinite;
 }
 
 .gpthub-gradient-bg::after {
@@ -337,7 +337,7 @@ select {
 		oklch(0.36 0.22 355) 45%,
 		transparent 72%
 	);
-	animation: blob-move-2 13s ease-in-out infinite;
+	animation: blob-move-2 6s ease-in-out infinite;
 	content: '';
 	display: block;
 }
@@ -348,7 +348,7 @@ select {
 	top: 35%;
 	right: 15%;
 	background: radial-gradient(circle, oklch(0.55 0.25 22) 0%, transparent 68%);
-	animation: blob-move-3 8s ease-in-out infinite;
+	animation: blob-move-3 4s ease-in-out infinite;
 }
 
 .gpthub-gradient-bg > i {
@@ -361,7 +361,7 @@ select {
 	bottom: 10%;
 	right: -5%;
 	background: radial-gradient(circle, oklch(0.43 0.28 5) 0%, transparent 68%);
-	animation: blob-move-4 11s ease-in-out infinite;
+	animation: blob-move-4 5.5s ease-in-out infinite;
 	opacity: 0.22;
 }
 
@@ -956,4 +956,50 @@ body {
 
 #note-content-container .ProseMirror {
 	padding-bottom: 2rem; /* space for the bottom toolbar */
+}
+/* ── Toast (svelte-sonner) ── */
+[data-sonner-toast] {
+	border-radius: 1rem !important;
+	font-family: inherit !important;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-sonner-toast][data-type='success'] {
+	background: #f0fdf4 !important;
+	color: #166534 !important;
+	border-color: #bbf7d0 !important;
+}
+
+[data-sonner-toast][data-type='error'] {
+	background: #fff1f2 !important;
+	color: #9f1239 !important;
+	border-color: #fecdd3 !important;
+}
+
+[data-sonner-toast][data-type='warning'] {
+	background: #fffbeb !important;
+	color: #92400e !important;
+	border-color: #fed7aa !important;
+}
+
+[data-sonner-toast][data-type='info'] {
+	border-radius: 1rem !important;
+}
+
+.dark [data-sonner-toast][data-type='success'] {
+	background: #052e16 !important;
+	color: #86efac !important;
+	border-color: #166534 !important;
+}
+
+.dark [data-sonner-toast][data-type='error'] {
+	background: #2d0a14 !important;
+	color: #fca5a5 !important;
+	border-color: #9f1239 !important;
+}
+
+.dark [data-sonner-toast][data-type='warning'] {
+	background: #1c1400 !important;
+	color: #fcd34d !important;
+	border-color: #92400e !important;
 }

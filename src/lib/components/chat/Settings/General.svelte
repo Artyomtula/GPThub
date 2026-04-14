@@ -195,7 +195,7 @@
 </script>
 
 <div class="flex flex-col h-full justify-between text-sm" id="tab-general">
-	<div class="  overflow-y-scroll max-h-[28rem] md:max-h-full">
+	<div class="  overflow-y-auto scrollbar-hidden h-full">
 		<div class="">
 			<div class=" mb-1 text-sm font-medium">{$i18n.t('WebUI Settings')}</div>
 
