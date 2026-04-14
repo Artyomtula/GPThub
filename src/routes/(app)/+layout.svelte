@@ -59,6 +59,12 @@
 
 	const gradientLeft = tweened(0, { duration: 320, easing: cubicOut });
 	$: gradientLeft.set($showSidebar && !$mobile ? $sidebarWidth : 0);
+	$: if (typeof document !== 'undefined') {
+		document.documentElement.style.setProperty(
+			'--gpthub-accent-hue',
+			String($settings?.accentHue ?? 18)
+		);
+	}
 	let localDBChats = [];
 
 	let version;

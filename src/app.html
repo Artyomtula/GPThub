@@ -71,6 +71,14 @@
 					metaThemeColorTag.setAttribute('content', '#171717');
 				}
 
+				// Apply saved accent hue instantly (avoids flash of wrong color)
+				try {
+					const _s = JSON.parse(localStorage.getItem('settings') ?? '{}');
+					if (_s.accentHue !== undefined) {
+						document.documentElement.style.setProperty('--gpthub-accent-hue', String(_s.accentHue));
+					}
+				} catch (_) {}
+
 				window.matchMedia('(prefers-color-scheme: dark)').addListener((e) => {
 					if (localStorage.theme === 'system') {
 						if (e.matches) {

@@ -319,8 +319,8 @@ select {
 	right: -10%;
 	background: radial-gradient(
 		circle,
-		oklch(0.5 0.28 18) 0%,
-		oklch(0.4 0.24 8) 45%,
+		oklch(0.5 0.28 var(--gpthub-accent-hue, 18)) 0%,
+		oklch(0.4 0.24 calc(var(--gpthub-accent-hue, 18) - 10)) 45%,
 		transparent 72%
 	);
 	animation: blob-move-1 5s ease-in-out infinite;
@@ -333,8 +333,8 @@ select {
 	left: 0%;
 	background: radial-gradient(
 		circle,
-		oklch(0.46 0.27 10) 0%,
-		oklch(0.36 0.22 355) 45%,
+		oklch(0.46 0.27 calc(var(--gpthub-accent-hue, 18) - 8)) 0%,
+		oklch(0.36 0.22 calc(var(--gpthub-accent-hue, 18) - 23)) 45%,
 		transparent 72%
 	);
 	animation: blob-move-2 6s ease-in-out infinite;
@@ -347,7 +347,11 @@ select {
 	height: min(40vw, 70%);
 	top: 35%;
 	right: 15%;
-	background: radial-gradient(circle, oklch(0.55 0.25 22) 0%, transparent 68%);
+	background: radial-gradient(
+		circle,
+		oklch(0.55 0.25 calc(var(--gpthub-accent-hue, 18) + 4)) 0%,
+		transparent 68%
+	);
 	animation: blob-move-3 4s ease-in-out infinite;
 }
 
@@ -360,13 +364,78 @@ select {
 	height: min(35vw, 65%);
 	bottom: 10%;
 	right: -5%;
-	background: radial-gradient(circle, oklch(0.43 0.28 5) 0%, transparent 68%);
+	background: radial-gradient(
+		circle,
+		oklch(0.43 0.28 calc(var(--gpthub-accent-hue, 18) - 13)) 0%,
+		transparent 68%
+	);
 	animation: blob-move-4 5.5s ease-in-out infinite;
 	opacity: 0.22;
 }
 
 :global(.dark) .gpthub-gradient-bg > i {
 	opacity: 0.55;
+}
+
+/* ── GPTHub: hue slider ───────────────────────────────────── */
+.gpthub-hue-slider {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 100%;
+	height: 1.25rem;
+	background: transparent;
+	cursor: pointer;
+	outline: none;
+	border-radius: 9999px;
+}
+.gpthub-hue-slider::-webkit-slider-runnable-track {
+	height: 1.25rem;
+	border-radius: 9999px;
+	background: linear-gradient(
+		to right,
+		hsl(0, 75%, 55%),
+		hsl(30, 75%, 55%),
+		hsl(60, 75%, 55%),
+		hsl(120, 75%, 55%),
+		hsl(180, 75%, 55%),
+		hsl(240, 75%, 55%),
+		hsl(300, 75%, 55%),
+		hsl(360, 75%, 55%)
+	);
+}
+.gpthub-hue-slider::-moz-range-track {
+	height: 1.25rem;
+	border-radius: 9999px;
+	background: linear-gradient(
+		to right,
+		hsl(0, 75%, 55%),
+		hsl(30, 75%, 55%),
+		hsl(60, 75%, 55%),
+		hsl(120, 75%, 55%),
+		hsl(180, 75%, 55%),
+		hsl(240, 75%, 55%),
+		hsl(300, 75%, 55%),
+		hsl(360, 75%, 55%)
+	);
+}
+.gpthub-hue-slider::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	width: 1.25rem;
+	height: 1.25rem;
+	border-radius: 50%;
+	border: 2.5px solid white;
+	box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+	background: hsl(var(--gpthub-accent-hue, 18), 75%, 55%);
+	cursor: grab;
+}
+.gpthub-hue-slider::-moz-range-thumb {
+	width: 1.25rem;
+	height: 1.25rem;
+	border-radius: 50%;
+	border: 2.5px solid white;
+	box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+	background: hsl(var(--gpthub-accent-hue, 18), 75%, 55%);
+	cursor: grab;
 }
 /* ───────────────────────────────────────────────────────────── */
 
