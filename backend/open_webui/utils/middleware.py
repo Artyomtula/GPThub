@@ -1585,6 +1585,185 @@ async def chat_web_search_handler(request: Request, form_data: dict, extra_param
     return form_data
 
 
+async def chat_research_handler(request: Request, form_data: dict, extra_params: dict, user):
+    """
+    Deep Research handler — generates multiple search queries, searches the web for each,
+    collects all results and injects a synthesis prompt so the LLM produces a structured report.
+    """
+    event_emitter = extra_params['__event_emitter__']
+
+    await event_emitter(
+        {
+            'type': 'status',
+            'data': {
+                'action': 'research',
+                'description': 'Planning research...',
+                'done': False,
+            },
+        }
+    )
+
+    messages = form_data['messages']
+    user_message = get_last_user_message(messages)
+    model_id = form_data['model']
+
+    # Step 1: Generate 5 research sub-queries via LLM
+    research_queries: list[str] = []
+    try:
+        task_model_id = get_task_model_id(
+            model_id,
+            request.app.state.config.TASK_MODEL,
+            request.app.state.config.TASK_MODEL_EXTERNAL,
+            request.app.state.MODELS,
+        )
+
+        planning_payload = {
+            'model': task_model_id,
+            'messages': [
+                {
+                    'role': 'system',
+                    'content': (
+                        'You are a research planner. Generate exactly 5 distinct search queries '
+                        'to thoroughly research the given topic from different angles: '
+                        'overview, detailed aspects, recent developments, comparisons, real-world examples. '
+                        'Return ONLY a valid JSON object with a "queries" array of strings. '
+                        'Example: {"queries": ["query 1", "query 2", "query 3", "query 4", "query 5"]}'
+                    ),
+                },
+                {
+                    'role': 'user',
+                    'content': f'Research topic: {user_message}',
+                },
+            ],
+            'stream': False,
+            'max_tokens': 400,
+            'temperature': 0.2,
+            'metadata': {
+                'task': 'RESEARCH_PLANNING',
+                'chat_id': extra_params.get('__chat_id__'),
+            },
+        }
+
+        planning_response = await generate_chat_completion(request, form_data=planning_payload, user=user)
+        planning_text = planning_response['choices'][0]['message']['content']
+
+        bracket_start = planning_text.rfind('{')
+        bracket_end = planning_text.rfind('}') + 1
+        if bracket_start >= 0 and bracket_end > bracket_start:
+            planning_json = json.loads(planning_text[bracket_start:bracket_end])
+            research_queries = [q for q in planning_json.get('queries', []) if isinstance(q, str)][:5]
+    except Exception as e:
+        log.exception(f'Research planning LLM call failed: {e}')
+
+    if not research_queries:
+        research_queries = [user_message]
+
+    await event_emitter(
+        {
+            'type': 'status',
+            'data': {
+                'action': 'research_queries_generated',
+                'queries': research_queries,
+                'done': False,
+            },
+        }
+    )
+
+    # Step 2: Search for each sub-query
+    all_files = list(form_data.get('files', []))
+    all_urls: list[str] = []
+
+    for query in research_queries:
+        await event_emitter(
+            {
+                'type': 'status',
+                'data': {
+                    'action': 'research',
+                    'description': f'Searching: {query[:70]}...' if len(query) > 70 else f'Searching: {query}',
+                    'done': False,
+                },
+            }
+        )
+
+        try:
+            results = await process_web_search(
+                request,
+                SearchForm(queries=[query]),
+                user=user,
+            )
+
+            if results:
+                urls_found = results.get('filenames', [])
+                all_urls.extend(urls_found)
+
+                if results.get('collection_names'):
+                    for collection_name in results.get('collection_names', []):
+                        all_files.append(
+                            {
+                                'collection_name': collection_name,
+                                'name': query,
+                                'type': 'web_search',
+                                'urls': urls_found,
+                                'queries': [query],
+                            }
+                        )
+                elif results.get('docs'):
+                    all_files.append(
+                        {
+                            'docs': results['docs'],
+                            'name': query,
+                            'type': 'web_search',
+                            'urls': urls_found,
+                            'queries': [query],
+                        }
+                    )
+        except Exception as e:
+            log.exception(f'Research web search failed for query "{query}": {e}')
+
+    form_data['files'] = all_files
+
+    # Step 3: Inject a research synthesis prompt so the LLM writes a structured report
+    unique_urls = list(dict.fromkeys(all_urls))  # deduplicate while preserving order
+    sources_count = len(unique_urls)
+
+    research_system_prompt = (
+        'You are conducting deep research. Using all retrieved web search context, '
+        'write a comprehensive, well-structured research report. '
+        'Structure your response as:\n'
+        '## Summary\n'
+        '(2-3 sentence executive summary)\n\n'
+        '## Key Findings\n'
+        '(Detailed sections with subheadings covering all important aspects)\n\n'
+        '## Conclusion\n'
+        '(Main takeaways and recommendations)\n\n'
+        '## Sources\n'
+        '(List the URLs you referenced)\n\n'
+        'Cite sources inline using [1], [2], etc. notation. '
+        'Be thorough, objective, and well-organised. '
+        'Write in the same language as the user\'s question.'
+    )
+
+    form_data['messages'] = add_or_update_system_message(
+        research_system_prompt,
+        form_data['messages'],
+        append=True,
+    )
+
+    await event_emitter(
+        {
+            'type': 'status',
+            'data': {
+                'action': 'research',
+                'description': f'Synthesizing report from {sources_count} source(s)...',
+                'urls': unique_urls,
+                'done': True,
+            },
+        }
+    )
+
+    return form_data
+
+
 def get_images_from_messages(message_list):
     images = []
 
@@ -2349,7 +2528,11 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         if 'web_search' in features and features['web_search']:
             # Skip forced RAG web search when native FC is enabled - model can use web_search tool
             if metadata.get('params', {}).get('function_calling') != 'native':
-                form_data = await chat_web_search_handler(request, form_data, extra_params, user)
+                # research mode overrides the standard web_search handler
+                if features.get('research'):
+                    form_data = await chat_research_handler(request, form_data, extra_params, user)
+                else:
+                    form_data = await chat_web_search_handler(request, form_data, extra_params, user)
 
         if 'image_generation' in features and features['image_generation']:
             # Skip forced image generation when native FC is enabled - model can use generate_image tool
@@ -2430,15 +2613,12 @@ async def process_chat_payload(request, form_data, user, metadata, model):
             )
 
     prompt = get_last_user_message(form_data['messages'])
-    # TODO: re-enable URL extraction from prompt
-    # urls = []
-    # if prompt and len(prompt or "") < 500 and (not files or len(files) == 0):
-    #     urls = extract_urls(prompt)
+    urls = []
+    if prompt and len(prompt or '') < 1000:
+        raw_urls = extract_urls(prompt)
+        urls = raw_urls[:3]  # limit to 3 URLs to avoid abuse
 
     if files:
-        if not files:
-            files = []
-
         for file_item in files:
             if file_item.get('type', 'file') == 'folder':
                 # Get folder files
@@ -2449,9 +2629,12 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                         files = [f for f in files if f.get('id', None) != folder_id]
                         files = [*files, *folder.data['files']]
 
-        # files = [*files, *[{"type": "url", "url": url, "name": url} for url in urls]]
+        if urls:
+            files = [*files, *[{'type': 'url', 'url': url, 'name': url} for url in urls]]
         # Remove duplicate files based on their content
         files = list({json.dumps(f, sort_keys=True): f for f in files}.values())
+    elif urls:
+        files = [{'type': 'url', 'url': url, 'name': url} for url in urls]
 
     metadata = {
         **metadata,

@@ -27,12 +27,21 @@
 	import CodeBracket from '$lib/components/icons/CodeBracket.svelte';
 	import Photo from '$lib/components/icons/Photo.svelte';
 	import Eye from '$lib/components/icons/Eye.svelte';
+	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
+	import BookOpen from '$lib/components/icons/BookOpen.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
 	import ModelItem from './ModelItem.svelte';
 
 	const getCapabilityIcon = (model: any): string => {
-		const text = `${(model?.id || '').toLowerCase()} ${(model?.name || '').toLowerCase()}`;
+		const id = (model?.id || '').toLowerCase();
+		if (id === 'gpthub:auto') return 'auto';
+		if (id === 'gpthub:code') return 'code';
+		if (id === 'gpthub:vision') return 'vision';
+		if (id === 'gpthub:image') return 'image';
+		if (id === 'gpthub:web') return 'web';
+		if (id === 'gpthub:research') return 'research';
+		const text = `${id} ${(model?.name || '').toLowerCase()}`;
 		const caps = model?.info?.meta?.capabilities || {};
 		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text))
 			return 'image';
@@ -481,10 +490,35 @@
 							strokeWidth="1.8"
 						/>
 					{:else if value.startsWith('gpthub:')}
-						<UserCircle
-							className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
-							strokeWidth="1.8"
-						/>
+						{@const agentIcon = getCapabilityIcon(selectedModel?.model)}
+						{#if agentIcon === 'code'}
+							<CodeBracket
+								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
+								strokeWidth="1.8"
+							/>
+						{:else if agentIcon === 'vision'}
+							<Eye className="size-4 shrink-0 text-gray-500 dark:text-gray-400" strokeWidth="1.8" />
+						{:else if agentIcon === 'image'}
+							<Photo
+								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
+								strokeWidth="1.8"
+							/>
+						{:else if agentIcon === 'web'}
+							<GlobeAlt
+								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
+								strokeWidth="1.8"
+							/>
+						{:else if agentIcon === 'research'}
+							<BookOpen
+								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
+								strokeWidth="1.8"
+							/>
+						{:else}
+							<Sparkles
+								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
+								strokeWidth="1.8"
+							/>
+						{/if}
 					{:else if selectedModel}
 						{#if getCapabilityIcon(selectedModel.model) === 'image'}
 							<Photo

@@ -21,6 +21,8 @@
 	import Photo from '$lib/components/icons/Photo.svelte';
 	import Eye from '$lib/components/icons/Eye.svelte';
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
+	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
+	import BookOpen from '$lib/components/icons/BookOpen.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -55,7 +57,15 @@
 		model?.owned_by === 'ollama' || model?.connection_type === 'local';
 
 	const getCapabilityIcon = (model: any): string => {
-		const text = `${(model?.id || '').toLowerCase()} ${(model?.name || '').toLowerCase()}`;
+		const id = (model?.id || '').toLowerCase();
+		// Virtual GPTHub agents — map by capability
+		if (id === 'gpthub:auto') return 'auto';
+		if (id === 'gpthub:code') return 'code';
+		if (id === 'gpthub:vision') return 'vision';
+		if (id === 'gpthub:image') return 'image';
+		if (id === 'gpthub:web') return 'web';
+		if (id === 'gpthub:research') return 'research';
+		const text = `${id} ${(model?.name || '').toLowerCase()}`;
 		const caps = model?.info?.meta?.capabilities || {};
 		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text))
 			return 'image';
@@ -128,7 +138,19 @@
 				<div
 					class="size-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0"
 				>
-					<UserCircle className="size-3.5 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+					{#if getCapabilityIcon(item.model) === 'code'}
+						<CodeBracket className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+					{:else if getCapabilityIcon(item.model) === 'vision'}
+						<Eye className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+					{:else if getCapabilityIcon(item.model) === 'image'}
+						<Photo className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+					{:else if getCapabilityIcon(item.model) === 'web'}
+						<GlobeAlt className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+					{:else if getCapabilityIcon(item.model) === 'research'}
+						<BookOpen className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+					{:else}
+						<Sparkles className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+					{/if}
 				</div>
 			{/if}
 

@@ -1839,6 +1839,12 @@ def _pick_first_available_model_for_capability(
         fallbacks = ['audio_transcription', 'text']
     elif capability == 'audio_speech':
         fallbacks = ['audio_speech', 'text']
+    elif capability == 'web_search':
+        # web search uses a regular text model with web_search feature forced on
+        fallbacks = ['text', 'code', 'vision']
+    elif capability == 'research':
+        # research uses a regular text model with research + web_search features forced on
+        fallbacks = ['text', 'code', 'vision']
     else:
         fallbacks = [capability, 'text', 'code', 'vision']
 
@@ -2102,6 +2108,18 @@ async def chat_completion(
             features = form_data.setdefault('features', {})
             if not features.get('image_generation'):
                 features['image_generation'] = True
+
+        # When the router resolves to a web-search model, force web_search on.
+        if selection_effective.get('resolved_capability') == 'web_search':
+            features = form_data.setdefault('features', {})
+            if not features.get('web_search'):
+                features['web_search'] = True
+
+        # When gpthub:research is selected, force both research and web_search on.
+        if selection_effective.get('resolved_capability') == 'research':
+            features = form_data.setdefault('features', {})
+            features['research'] = True
+            features['web_search'] = True
     else:
         if selection_mode == 'manual':
             raise HTTPException(

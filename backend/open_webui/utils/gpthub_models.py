@@ -33,11 +33,32 @@ VIRTUAL_MODEL_SPECS: tuple[VirtualModelSpec, ...] = (
         tags=('GPTHub', 'Virtual', 'Code'),
     ),
     VirtualModelSpec(
+        id='gpthub:vision',
+        name='Vision',
+        capability='vision',
+        description='Analyses images, screenshots and photos — describe or ask questions about what you see.',
+        tags=('GPTHub', 'Virtual', 'Vision'),
+    ),
+    VirtualModelSpec(
         id='gpthub:image',
         name='Image Generator',
         capability='image_generation',
         description='Creates an image from your text description.',
         tags=('GPTHub', 'Virtual', 'Image'),
+    ),
+    VirtualModelSpec(
+        id='gpthub:web',
+        name='Web Search',
+        capability='web_search',
+        description='Searches the web and gives you up-to-date information with cited sources.',
+        tags=('GPTHub', 'Virtual', 'Web'),
+    ),
+    VirtualModelSpec(
+        id='gpthub:research',
+        name='Deep Research',
+        capability='research',
+        description='Conducts multi-step research across multiple sources and delivers a structured report.',
+        tags=('GPTHub', 'Virtual', 'Research'),
     ),
 )
 
@@ -49,6 +70,8 @@ CAPABILITY_ORDER: tuple[str, ...] = (
     'image_generation',
     'audio_transcription',
     'audio_speech',
+    'web_search',
+    'research',
 )
 
 
@@ -216,6 +239,18 @@ def infer_request_capability(prompt: str) -> str:
         return 'code'
     if re.search(r'(audio|speech|voice|transcrib|распознай|аудио|транскриб)', normalized):
         return 'audio_transcription'
+    if re.search(
+        r'(исследуй|напиши.*отчёт|напиши.*доклад|deep.?research|research.*report|comprehensive.*analysis|'
+        r'подготовь.*анализ|подробный.*анализ|detailed.*report)',
+        normalized,
+    ):
+        return 'research'
+    if re.search(
+        r'(найди в интернет|поищи|найди информ|актуальн|последн.*новост|что сейчас|'
+        r'search.*web|find.*online|latest.*news|current.*price|today.*weather)',
+        normalized,
+    ):
+        return 'web_search'
 
     return 'text'
 
@@ -255,6 +290,19 @@ def _virtual_capabilities(capability: str) -> dict[str, bool]:
         return {
             **defaults,
             'image_generation': True,
+        }
+
+    if capability == 'web_search':
+        return {
+            **defaults,
+            'web_search': True,
+        }
+
+    if capability == 'research':
+        return {
+            **defaults,
+            'web_search': True,  # research uses web_search under the hood
+            'research': True,
         }
 
     return defaults
