@@ -1887,6 +1887,8 @@ async def _resolve_effective_model_selection(
     ]
     capability_graph = build_capability_graph(available_models, non_arena_model_ids)
     last_user_prompt = _extract_last_user_prompt(form_data)
+    # Detect voice mode early so router and capability guards can use it below.
+    is_voice_mode = bool((form_data.get('features') or {}).get('voice'))
 
     resolved_model_id = None
     resolution_reason = 'manual_missing'
@@ -1933,6 +1935,10 @@ async def _resolve_effective_model_selection(
                         continue
                     model = available_models.get(model_id, {})
                     caps = sorted(infer_model_capabilities(model))
+                    # In voice mode, exclude image-only models so the router never
+                    # picks them for a spoken conversation request.
+                    if is_voice_mode and caps == ['image_generation']:
+                        continue
                     model_catalogue.append({
                         'id': model_id,
                         'name': model.get('name') or model_id,
@@ -1988,12 +1994,18 @@ async def _resolve_effective_model_selection(
                         ):
                             resolved_model_id = candidate_model_id
                             resolved_capability = infer_request_capability(last_user_prompt)
+                            # In voice mode, never let this resolve to image_generation
+                            if is_voice_mode and resolved_capability == 'image_generation':
+                                resolved_capability = 'text'
                             resolution_reason = 'router_model_choice'
                 except Exception as e:
                     log.debug(f'Router model selection failed: {e}')
 
             if resolved_model_id is None:
                 resolved_capability = infer_request_capability(last_user_prompt)
+                # In voice mode, fall back to text rather than image_generation
+                if is_voice_mode and resolved_capability == 'image_generation':
+                    resolved_capability = 'text'
                 resolved_model_id = _pick_first_available_model_for_capability(capability_graph, resolved_capability)
                 resolution_reason = 'router_heuristic_fallback'
         else:
@@ -2022,6 +2034,13 @@ async def _resolve_effective_model_selection(
         # Manual fallback is intentionally strict: if the requested model
         # cannot be resolved, frontend should receive an explicit error.
         pass
+
+    # Voice mode: never route to image_generation — the user is having a spoken
+    # conversation and expects a text/TTS reply, not an image.
+    if is_voice_mode and resolved_capability == 'image_generation':
+        resolved_capability = 'text'
+        resolved_model_id = _pick_first_available_model_for_capability(capability_graph, 'text')
+        resolution_reason = f'{resolution_reason}|voice_image_overridden'
 
     # image_generation capability: the actual image is created via the env-configured
     # IMAGE_GENERATION_MODEL inside chat_image_generation_handler, which does NOT use
@@ -2106,7 +2125,8 @@ async def chat_completion(
         # The frontend cannot know this in advance (it sees a virtual/text model).
         if selection_effective.get('resolved_capability') == 'image_generation':
             features = form_data.setdefault('features', {})
-            if not features.get('image_generation'):
+            # Never force image generation in voice mode — user expects a spoken reply
+            if not features.get('image_generation') and not features.get('voice', False):
                 features['image_generation'] = True
 
         # When the router resolves to a web-search model, force web_search on.

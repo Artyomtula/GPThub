@@ -248,6 +248,7 @@
 
 					const speech = new SpeechSynthesisUtterance(content);
 					speech.rate = $settings.audio?.tts?.playbackRate ?? 1;
+					speech.lang = $i18n.resolvedLanguage ?? 'ru-RU';
 
 					console.log(speech);
 
@@ -271,6 +272,9 @@
 			$audioQueue.onStopped = () => {
 				speaking = false;
 				speakingIdx = undefined;
+				if ($settings.conversationMode) {
+					document.getElementById('voice-input-button')?.click();
+				}
 			};
 
 			loadingSpeech = true;

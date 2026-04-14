@@ -100,6 +100,8 @@ export const showEmbeds = writable(false);
 export const showOverview = writable(false);
 export const showArtifacts = writable(false);
 export const showCallOverlay = writable(false);
+// Set to true when user submits a message via voice recording, so the response gets auto-played
+export const pendingVoiceResponse = writable(false);
 export const showFileNav = writable(false);
 export const showFileNavPath: Writable<string | null> = writable(null);
 export const showFileNavDir: Writable<string | null> = writable(null);

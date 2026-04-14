@@ -30,6 +30,7 @@
 		audioQueue,
 		showControls,
 		showCallOverlay,
+		pendingVoiceResponse,
 		currentChatPage,
 		temporaryChatEnabled,
 		mobile,
@@ -1737,7 +1738,8 @@
 				copyToClipboard(message.content);
 			}
 
-			if ($settings.responseAutoPlayback && !$showCallOverlay) {
+			if (($settings.responseAutoPlayback || $pendingVoiceResponse) && !$showCallOverlay) {
+				pendingVoiceResponse.set(false);
 				await tick();
 				document.getElementById(`speak-button-${message.id}`)?.click();
 			}

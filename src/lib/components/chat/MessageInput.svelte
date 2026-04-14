@@ -26,6 +26,7 @@
 		models,
 		config,
 		showCallOverlay,
+		pendingVoiceResponse,
 		tools,
 		toolServers,
 		terminalServers,
@@ -1189,6 +1190,7 @@
 								document.getElementById('chat-input')?.focus();
 
 								if ($settings?.speechAutoSend ?? false) {
+									pendingVoiceResponse.set(true);
 									dispatch('submit', prompt);
 								}
 							}}
