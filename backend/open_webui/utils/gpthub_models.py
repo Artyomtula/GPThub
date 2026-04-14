@@ -214,7 +214,7 @@ def infer_request_capability(prompt: str) -> str:
         return 'vision'
     if re.search(r'(код|code|bug|debug|refactor|typescript|javascript|python|sql|regex|api)', normalized):
         return 'code'
-    if re.search(r'(audio|speech|voice|transcrib|распознай|аудио|транскриб)', normalized):
+    if re.search(r'(audio|speech|voice|transcrib|распознай|расшифруй|аудио|транскриб|запись)', normalized):
         return 'audio_transcription'
     if re.search(
         r'(исследуй|напиши.*отчёт|напиши.*доклад|deep.?research|research.*report|comprehensive.*analysis|'

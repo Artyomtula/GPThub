@@ -1886,6 +1886,56 @@ def add_file_context(messages: list, chat_id: str, user) -> list:
     return messages
 
 
+async def chat_audio_transcription_handler(request: Request, form_data: dict, extra_params: dict, user):
+    """
+    Audio files always use full-context mode so the complete transcript is injected
+    into the LLM context (bypassing chunked RAG retrieval, which destroys coherence).
+    When the user explicitly requests a transcription, an additional system prompt
+    instructs the LLM to output the transcript verbatim.
+    """
+    files = form_data.get('files', [])
+    if not files:
+        return form_data
+
+    audio_file_items = [
+        item for item in files
+        if item.get('content_type', '').startswith(('audio/', 'video/'))
+    ]
+
+    if not audio_file_items:
+        return form_data
+
+    # Always inject the full transcript for audio/video files — chunked RAG
+    # is useless for speech recordings because it loses narrative coherence.
+    for item in audio_file_items:
+        item['context'] = 'full'
+
+    # Only add the "output verbatim" system prompt when the user explicitly
+    # asks for a transcription (not for summarise / Q&A / etc.).
+    user_msg = get_last_user_message(form_data.get('messages', [])) or ''
+    verbatim_requested = bool(
+        re.search(
+            r'транскрип|расшифру|распозна|перевед.*текст|в\s+текст'
+            r'|transcript|transcrib|speech.?to.?text|word.?for.?word',
+            user_msg,
+            re.IGNORECASE,
+        )
+        or not user_msg.strip()  # empty prompt with audio → transcribe by default
+    )
+
+    if verbatim_requested:
+        names = ', '.join(item.get('name', 'audio') for item in audio_file_items)
+        form_data['messages'] = add_or_update_system_message(
+            f'<context>The user has requested a full verbatim transcription of the audio file(s): {names}. '
+            f'The transcript is provided in the document context below. '
+            f'Output the complete transcript to the user verbatim, without adding any commentary or paraphrasing.</context>',
+            form_data['messages'],
+            append=True,
+        )
+
+    return form_data
+
+
 async def chat_image_generation_handler(request: Request, form_data: dict, extra_params: dict, user):
     metadata = extra_params.get('__metadata__', {})
     chat_id = metadata.get('chat_id', None)
@@ -2600,6 +2650,9 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                     form_data['messages'],
                     append=True,
                 )
+
+    # Audio transcription: full-context mode for audio/video files with transcription requests
+    form_data = await chat_audio_transcription_handler(request, form_data, extra_params, user)
 
     tool_ids = form_data.pop('tool_ids', None)
     terminal_id = form_data.pop('terminal_id', None)
