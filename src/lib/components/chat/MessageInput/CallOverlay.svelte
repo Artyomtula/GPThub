@@ -390,6 +390,7 @@
 
 						currentUtterance = new SpeechSynthesisUtterance(content);
 						currentUtterance.rate = $settings.audio?.tts?.playbackRate ?? 1;
+						currentUtterance.lang = $i18n.resolvedLanguage ?? 'ru-RU';
 
 						if (voice) {
 							currentUtterance.voice = voice;

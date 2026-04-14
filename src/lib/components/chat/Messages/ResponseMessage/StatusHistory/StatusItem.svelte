@@ -3,6 +3,8 @@
 	const i18n = getContext('i18n');
 	import WebSearchResults from '../WebSearchResults.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
+	import BookOpen from '$lib/components/icons/BookOpen.svelte';
+	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
 	import { t } from 'i18next';
 
 	export let status = null;
@@ -11,7 +13,49 @@
 
 {#if !status?.hidden}
 	<div class="status-description flex items-center gap-2 py-0.5 w-full text-left">
-		{#if status?.action === 'web_search' && (status?.urls || status?.items)}
+		{#if status?.action === 'research' && status?.urls && status?.done}
+			<WebSearchResults {status}>
+				<div class="flex flex-col justify-center -space-y-0.5">
+					<div
+						class="{(done || status?.done) === false
+							? 'shimmer'
+							: ''} text-base line-clamp-1 text-wrap"
+					>
+						{status?.description ?? $i18n.t('Research complete')}
+					</div>
+				</div>
+			</WebSearchResults>
+		{:else if status?.action === 'research_queries_generated' && status?.queries}
+			<div class="flex flex-col justify-center -space-y-0.5">
+				<div
+					class="{(done || status?.done) === false
+						? 'shimmer'
+						: ''} text-gray-500 dark:text-gray-500 text-base line-clamp-1 text-wrap"
+				>
+					{$i18n.t('Researching...')}
+				</div>
+				<div class="flex gap-1 flex-wrap mt-2">
+					{#each status.queries as query (query)}
+						<div
+							class="bg-gray-50 dark:bg-gray-850 flex rounded-lg py-1 px-2 items-center gap-1 text-xs"
+						>
+							<BookOpen className="size-3 shrink-0" />
+							<span class="line-clamp-1">{query}</span>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{:else if status?.action === 'research'}
+			<div class="flex flex-col justify-center -space-y-0.5">
+				<div
+					class="{(done || status?.done) === false
+						? 'shimmer'
+						: ''} text-gray-500 dark:text-gray-500 text-base line-clamp-1 text-wrap"
+				>
+					{status?.description ?? $i18n.t('Researching...')}
+				</div>
+			</div>
+		{:else if status?.action === 'web_search' && (status?.urls || status?.items)}
 			<WebSearchResults {status}>
 				<div class="flex flex-col justify-center -space-y-0.5">
 					<div

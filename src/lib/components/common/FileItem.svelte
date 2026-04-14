@@ -22,6 +22,7 @@
 	export let dismissible = false;
 	export let modal = false;
 	export let loading = false;
+	export let progress: number | null = null; // 0-100 for determinate upload, null for indeterminate
 
 	export let item = null;
 	export let edit = false;
@@ -98,7 +99,7 @@
 					/>
 				</svg>
 			{:else}
-				<Spinner />
+				<Spinner variant="progress" {progress} />
 			{/if}
 		</div>
 	{:else}
@@ -129,7 +130,7 @@
 					{/if}
 				</Tooltip>
 			{:else}
-				<Spinner />
+				<Spinner variant="progress" {progress} />
 			{/if}
 		</div>
 	{/if}

@@ -1406,21 +1406,53 @@ async def chat_memory_handler(request: Request, form_data: dict, extra_params: d
         log.debug(e)
         results = None
 
+    def parse_structured_memory_text(doc_text: str) -> Optional[dict]:
+        try:
+            payload = json.loads(doc_text)
+            if isinstance(payload, dict) and payload.get('schema') == 'gpthub_memory_v1':
+                return payload
+        except Exception:
+            return None
+        return None
+
     user_context = ''
+    now_ts = int(time.time())
     if results and hasattr(results, 'documents'):
         if results.documents and len(results.documents) > 0:
             for doc_idx, doc in enumerate(results.documents[0]):
+                structured = parse_structured_memory_text(doc)
+                if structured:
+                    if structured.get('status') == 'inactive':
+                        continue
+                    expires_at = structured.get('expires_at')
+                    if isinstance(expires_at, int) and expires_at > 0 and now_ts > expires_at:
+                        continue
+
                 created_at_date = 'Unknown Date'
 
                 if results.metadatas[0][doc_idx].get('created_at'):
                     created_at_timestamp = results.metadatas[0][doc_idx]['created_at']
                     created_at_date = time.strftime('%Y-%m-%d', time.localtime(created_at_timestamp))
 
-                user_context += f'{doc_idx + 1}. [{created_at_date}] {doc}\n'
+                if structured:
+                    mem_type = str(structured.get('type') or 'fact')
+                    mem_value = str(structured.get('value') or '').strip()
+                    if not mem_value:
+                        continue
+                    confidence = structured.get('confidence')
+                    confidence_text = ''
+                    try:
+                        confidence_text = f" ({round(float(confidence), 2)})"
+                    except Exception:
+                        confidence_text = ''
+                    user_context += f'{doc_idx + 1}. [{created_at_date}] [{mem_type}{confidence_text}] {mem_value}\n'
+                else:
+                    user_context += f'{doc_idx + 1}. [{created_at_date}] {doc}\n'
 
-    form_data['messages'] = add_or_update_system_message(
-        f'User Context:\n{user_context}\n', form_data['messages'], append=True
-    )
+    if user_context.strip():
+        form_data['messages'] = add_or_update_system_message(
+            f'User Context:\n{user_context}\n', form_data['messages'], append=True
+        )
 
     return form_data
 
@@ -1585,6 +1617,185 @@ async def chat_web_search_handler(request: Request, form_data: dict, extra_param
     return form_data
 
 
+async def chat_research_handler(request: Request, form_data: dict, extra_params: dict, user):
+    """
+    Deep Research handler — generates multiple search queries, searches the web for each,
+    collects all results and injects a synthesis prompt so the LLM produces a structured report.
+    """
+    event_emitter = extra_params['__event_emitter__']
+
+    await event_emitter(
+        {
+            'type': 'status',
+            'data': {
+                'action': 'research',
+                'description': 'Planning research...',
+                'done': False,
+            },
+        }
+    )
+
+    messages = form_data['messages']
+    user_message = get_last_user_message(messages)
+    model_id = form_data['model']
+
+    # Step 1: Generate 5 research sub-queries via LLM
+    research_queries: list[str] = []
+    try:
+        task_model_id = get_task_model_id(
+            model_id,
+            request.app.state.config.TASK_MODEL,
+            request.app.state.config.TASK_MODEL_EXTERNAL,
+            request.app.state.MODELS,
+        )
+
+        planning_payload = {
+            'model': task_model_id,
+            'messages': [
+                {
+                    'role': 'system',
+                    'content': (
+                        'You are a research planner. Generate exactly 5 distinct search queries '
+                        'to thoroughly research the given topic from different angles: '
+                        'overview, detailed aspects, recent developments, comparisons, real-world examples. '
+                        'Return ONLY a valid JSON object with a "queries" array of strings. '
+                        'Example: {"queries": ["query 1", "query 2", "query 3", "query 4", "query 5"]}'
+                    ),
+                },
+                {
+                    'role': 'user',
+                    'content': f'Research topic: {user_message}',
+                },
+            ],
+            'stream': False,
+            'max_tokens': 400,
+            'temperature': 0.2,
+            'metadata': {
+                'task': 'RESEARCH_PLANNING',
+                'chat_id': extra_params.get('__chat_id__'),
+            },
+        }
+
+        planning_response = await generate_chat_completion(request, form_data=planning_payload, user=user)
+        planning_text = planning_response['choices'][0]['message']['content']
+
+        bracket_start = planning_text.rfind('{')
+        bracket_end = planning_text.rfind('}') + 1
+        if bracket_start >= 0 and bracket_end > bracket_start:
+            planning_json = json.loads(planning_text[bracket_start:bracket_end])
+            research_queries = [q for q in planning_json.get('queries', []) if isinstance(q, str)][:5]
+    except Exception as e:
+        log.exception(f'Research planning LLM call failed: {e}')
+
+    if not research_queries:
+        research_queries = [user_message]
+
+    await event_emitter(
+        {
+            'type': 'status',
+            'data': {
+                'action': 'research_queries_generated',
+                'queries': research_queries,
+                'done': False,
+            },
+        }
+    )
+
+    # Step 2: Search for each sub-query
+    all_files = list(form_data.get('files', []))
+    all_urls: list[str] = []
+
+    for query in research_queries:
+        await event_emitter(
+            {
+                'type': 'status',
+                'data': {
+                    'action': 'research',
+                    'description': f'Searching: {query[:70]}...' if len(query) > 70 else f'Searching: {query}',
+                    'done': False,
+                },
+            }
+        )
+
+        try:
+            results = await process_web_search(
+                request,
+                SearchForm(queries=[query]),
+                user=user,
+            )
+
+            if results:
+                urls_found = results.get('filenames', [])
+                all_urls.extend(urls_found)
+
+                if results.get('collection_names'):
+                    for collection_name in results.get('collection_names', []):
+                        all_files.append(
+                            {
+                                'collection_name': collection_name,
+                                'name': query,
+                                'type': 'web_search',
+                                'urls': urls_found,
+                                'queries': [query],
+                            }
+                        )
+                elif results.get('docs'):
+                    all_files.append(
+                        {
+                            'docs': results['docs'],
+                            'name': query,
+                            'type': 'web_search',
+                            'urls': urls_found,
+                            'queries': [query],
+                        }
+                    )
+        except Exception as e:
+            log.exception(f'Research web search failed for query "{query}": {e}')
+
+    form_data['files'] = all_files
+
+    # Step 3: Inject a research synthesis prompt so the LLM writes a structured report
+    unique_urls = list(dict.fromkeys(all_urls))  # deduplicate while preserving order
+    sources_count = len(unique_urls)
+
+    research_system_prompt = (
+        'You are conducting deep research. Using all retrieved web search context, '
+        'write a comprehensive, well-structured research report. '
+        'Structure your response as:\n'
+        '## Summary\n'
+        '(2-3 sentence executive summary)\n\n'
+        '## Key Findings\n'
+        '(Detailed sections with subheadings covering all important aspects)\n\n'
+        '## Conclusion\n'
+        '(Main takeaways and recommendations)\n\n'
+        '## Sources\n'
+        '(List the URLs you referenced)\n\n'
+        'Cite sources inline using [1], [2], etc. notation. '
+        'Be thorough, objective, and well-organised. '
+        'Write in the same language as the user\'s question.'
+    )
+
+    form_data['messages'] = add_or_update_system_message(
+        research_system_prompt,
+        form_data['messages'],
+        append=True,
+    )
+
+    await event_emitter(
+        {
+            'type': 'status',
+            'data': {
+                'action': 'research',
+                'description': f'Synthesizing report from {sources_count} source(s)...',
+                'urls': unique_urls,
+                'done': True,
+            },
+        }
+    )
+
+    return form_data
+
+
 def get_images_from_messages(message_list):
     images = []
 
@@ -1673,6 +1884,56 @@ def add_file_context(messages: list, chat_id: str, user) -> list:
             message['content'] = file_context + content
 
     return messages
+
+
+async def chat_audio_transcription_handler(request: Request, form_data: dict, extra_params: dict, user):
+    """
+    Audio files always use full-context mode so the complete transcript is injected
+    into the LLM context (bypassing chunked RAG retrieval, which destroys coherence).
+    When the user explicitly requests a transcription, an additional system prompt
+    instructs the LLM to output the transcript verbatim.
+    """
+    files = form_data.get('files', [])
+    if not files:
+        return form_data
+
+    audio_file_items = [
+        item for item in files
+        if item.get('content_type', '').startswith(('audio/', 'video/'))
+    ]
+
+    if not audio_file_items:
+        return form_data
+
+    # Always inject the full transcript for audio/video files — chunked RAG
+    # is useless for speech recordings because it loses narrative coherence.
+    for item in audio_file_items:
+        item['context'] = 'full'
+
+    # Only add the "output verbatim" system prompt when the user explicitly
+    # asks for a transcription (not for summarise / Q&A / etc.).
+    user_msg = get_last_user_message(form_data.get('messages', [])) or ''
+    verbatim_requested = bool(
+        re.search(
+            r'транскрип|расшифру|распозна|перевед.*текст|в\s+текст'
+            r'|transcript|transcrib|speech.?to.?text|word.?for.?word',
+            user_msg,
+            re.IGNORECASE,
+        )
+        or not user_msg.strip()  # empty prompt with audio → transcribe by default
+    )
+
+    if verbatim_requested:
+        names = ', '.join(item.get('name', 'audio') for item in audio_file_items)
+        form_data['messages'] = add_or_update_system_message(
+            f'<context>The user has requested a full verbatim transcription of the audio file(s): {names}. '
+            f'The transcript is provided in the document context below. '
+            f'Output the complete transcript to the user verbatim, without adding any commentary or paraphrasing.</context>',
+            form_data['messages'],
+            append=True,
+        )
+
+    return form_data
 
 
 async def chat_image_generation_handler(request: Request, form_data: dict, extra_params: dict, user):
@@ -1871,6 +2132,598 @@ async def chat_image_generation_handler(request: Request, form_data: dict, extra
 
     if system_message_content:
         form_data['messages'] = add_or_update_system_message(system_message_content, form_data['messages'])
+
+    return form_data
+
+
+# ---------------------------------------------------------------------------
+# Presentation generation – 4 layout types with per-slide image generation
+# ---------------------------------------------------------------------------
+
+_PPTX_THEMES = {
+    'corporate': {
+        'bg': (0x1A, 0x2E, 0x4A),
+        'title_bg': (0x12, 0x1F, 0x33),
+        'title_fg': (0xFF, 0xFF, 0xFF),
+        'body_fg': (0xCC, 0xDD, 0xEE),
+        'html_bg': '#1a2e4a',
+        'html_card': '#12213a',
+        'html_title': '#ffffff',
+        'html_body': '#ccddee',
+        'html_accent': '#008bd0',
+    },
+    'dark': {
+        'bg': (0x1A, 0x1A, 0x2E),
+        'title_bg': (0x0D, 0x0D, 0x1A),
+        'title_fg': (0xE0, 0xFA, 0xFF),
+        'body_fg': (0xB0, 0xC4, 0xDE),
+        'html_bg': '#1a1a2e',
+        'html_card': '#0d0d1a',
+        'html_title': '#e0faff',
+        'html_body': '#b0c4de',
+        'html_accent': '#7f5af0',
+    },
+    'minimal': {
+        'bg': (0xFF, 0xFF, 0xFF),
+        'title_bg': (0xF5, 0xF5, 0xF5),
+        'title_fg': (0x1A, 0x1A, 0x2E),
+        'body_fg': (0x44, 0x44, 0x55),
+        'html_bg': '#f5f5f5',
+        'html_card': '#ffffff',
+        'html_title': '#1a1a2e',
+        'html_body': '#444455',
+        'html_accent': '#3366ff',
+    },
+}
+
+_PPTX_THEME_KEYWORDS = [
+    (['corporate', 'business', 'professional', 'корпорат', 'бизнес', 'деловой'], 'corporate'),
+    (['dark', 'night', 'темн', 'ночн', 'черн'], 'dark'),
+    (['minimal', 'clean', 'light', 'white', 'минимал', 'чист', 'светл', 'белый'], 'minimal'),
+]
+
+
+def _detect_pptx_theme(text: str) -> str:
+    lowered = text.lower()
+    for keywords, theme in _PPTX_THEME_KEYWORDS:
+        if any(kw in lowered for kw in keywords):
+            return theme
+    return 'corporate'
+
+
+async def _drain_response_to_text(result) -> str:
+    """Extract content text from any generate_chat_completion return type."""
+    if isinstance(result, dict):
+        return (result.get('choices') or [{}])[0].get('message', {}).get('content', '') or ''
+    if hasattr(result, 'body') and not hasattr(result, 'body_iterator'):
+        try:
+            parsed = json.loads(result.body)
+            return (parsed.get('choices') or [{}])[0].get('message', {}).get('content', '') or ''
+        except Exception:
+            return ''
+    if hasattr(result, 'body_iterator'):
+        parts: list[str] = []
+        async for chunk in result.body_iterator:
+            text = chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk
+            for line in text.split('\n'):
+                line = line.strip()
+                if not line.startswith('data:'):
+                    continue
+                data_str = line[5:].strip()
+                if not data_str or data_str == '[DONE]':
+                    continue
+                try:
+                    data = json.loads(data_str)
+                    choice = (data.get('choices') or [{}])[0]
+                    piece = (choice.get('delta') or {}).get('content') or ''
+                    if not piece:
+                        piece = (choice.get('message') or {}).get('content') or ''
+                    parts.append(piece)
+                except Exception:
+                    pass
+        return ''.join(parts)
+    raise ValueError(f'Unexpected response type from generate_chat_completion: {type(result)}')
+
+
+# ---------- Layout definitions (slide = 13.33 x 7.5 in) ----------
+# Each layout maps to regions for: title, body (bullets), image
+# Values: (left, top, width, height) in inches
+
+_SLIDE_W = 13.33
+_SLIDE_H = 7.5
+
+_PPTX_LAYOUTS = {
+    'split-right': {
+        'title': (0.5, 0.3, 6.0, 1.0),
+        'body': (0.5, 1.5, 6.0, 5.5),
+        'image': (6.83, 0.0, 6.5, 7.5),
+    },
+    'split-left': {
+        'title': (6.83, 0.3, 6.0, 1.0),
+        'body': (6.83, 1.5, 6.0, 5.5),
+        'image': (0.0, 0.0, 6.5, 7.5),
+    },
+    'hero': {
+        'title': (1.0, 2.0, 11.33, 1.5),
+        'body': (1.5, 4.0, 10.33, 2.5),
+        'image': (0.0, 0.0, _SLIDE_W, _SLIDE_H),  # full-bleed background
+    },
+    'top-strip': {
+        'title': (0.5, 3.6, 12.33, 1.0),
+        'body': (0.5, 4.8, 12.33, 2.4),
+        'image': (0.0, 0.0, _SLIDE_W, 3.4),
+    },
+}
+
+_VALID_LAYOUTS = list(_PPTX_LAYOUTS.keys())
+
+
+def _build_pptx(slides_data: dict, theme: str = 'corporate', slide_images: dict[int, bytes] | None = None) -> bytes:
+    """Build a themed PPTX with 4 layout types and optional per-slide images."""
+    import io
+
+    from pptx import Presentation as PPTXPresentation
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+    from pptx.util import Inches, Pt
+
+    slide_images = slide_images or {}
+    t = _PPTX_THEMES.get(theme, _PPTX_THEMES['corporate'])
+
+    prs = PPTXPresentation()
+    prs.slide_width = Inches(_SLIDE_W)
+    prs.slide_height = Inches(_SLIDE_H)
+
+    blank_layout = prs.slide_layouts[6]  # Blank layout – we position everything manually
+
+    slides = slides_data.get('slides', [])
+
+    for idx, sd in enumerate(slides):
+        slide = prs.slides.add_slide(blank_layout)
+
+        # Background
+        slide.background.fill.solid()
+        bg_color = t['title_bg'] if idx == 0 else t['bg']
+        slide.background.fill.fore_color.rgb = RGBColor(*bg_color)
+
+        layout_name = sd.get('layout', 'split-right')
+        if layout_name not in _PPTX_LAYOUTS:
+            layout_name = 'split-right'
+        layout = _PPTX_LAYOUTS[layout_name]
+
+        # --- Image ---
+        img_bytes = slide_images.get(idx)
+        if img_bytes:
+            il, it, iw, ih = layout['image']
+            if layout_name == 'hero':
+                # Full-bleed background image
+                slide.shapes.add_picture(
+                    io.BytesIO(img_bytes),
+                    Inches(il), Inches(it), Inches(iw), Inches(ih),
+                )
+                # Add semi-transparent overlay for readability
+                from pptx.oxml.ns import qn
+                overlay = slide.shapes.add_shape(
+                    1,  # MSO_SHAPE.RECTANGLE
+                    Inches(0), Inches(0), Inches(_SLIDE_W), Inches(_SLIDE_H),
+                )
+                overlay.fill.solid()
+                overlay.fill.fore_color.rgb = RGBColor(*bg_color)
+                # Set transparency via XML (50% transparent)
+                fill_elem = overlay.fill._fill
+                solid = fill_elem.find(qn('a:solidFill'))
+                if solid is not None:
+                    srgb = solid.find(qn('a:srgbClr'))
+                    if srgb is None:
+                        srgb = solid[0] if len(solid) else None
+                    if srgb is not None:
+                        from lxml import etree
+                        alpha = etree.SubElement(srgb, qn('a:alpha'))
+                        alpha.set('val', '50000')  # 50% opacity
+                overlay.line.fill.background()
+            else:
+                slide.shapes.add_picture(
+                    io.BytesIO(img_bytes),
+                    Inches(il), Inches(it), Inches(iw), Inches(ih),
+                )
+
+        # --- Title ---
+        tl, tt, tw, th = layout['title']
+        title_box = slide.shapes.add_textbox(Inches(tl), Inches(tt), Inches(tw), Inches(th))
+        title_tf = title_box.text_frame
+        title_tf.word_wrap = True
+        title_p = title_tf.paragraphs[0]
+        title_p.text = sd.get('title', f'Slide {idx + 1}')
+        title_p.font.size = Pt(32) if layout_name == 'hero' else Pt(24)
+        title_p.font.bold = True
+        title_p.font.color.rgb = RGBColor(*t['title_fg'])
+        if layout_name == 'hero':
+            title_p.alignment = PP_ALIGN.CENTER
+
+        # --- Body ---
+        body_items = sd.get('body', [])
+        if body_items:
+            bl, bt, bw, bh = layout['body']
+            body_box = slide.shapes.add_textbox(Inches(bl), Inches(bt), Inches(bw), Inches(bh))
+            body_tf = body_box.text_frame
+            body_tf.word_wrap = True
+            for j, bullet in enumerate(body_items):
+                p = body_tf.paragraphs[0] if j == 0 else body_tf.add_paragraph()
+                p.text = bullet
+                p.font.size = Pt(16) if layout_name == 'hero' else Pt(14)
+                p.font.color.rgb = RGBColor(*t['body_fg'])
+                p.space_after = Pt(6)
+                if layout_name == 'hero':
+                    p.alignment = PP_ALIGN.CENTER
+
+    buf = io.BytesIO()
+    prs.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+def _build_slide_preview_html(
+    slides_data: dict,
+    theme: str = 'corporate',
+    slide_image_urls: dict[int, str] | None = None,
+) -> str:
+    """Generate an HTML preview of the presentation with layout-aware rendering."""
+    import html as html_lib
+
+    slide_image_urls = slide_image_urls or {}
+    t = _PPTX_THEMES.get(theme, _PPTX_THEMES['corporate'])
+    pres_title = html_lib.escape(slides_data.get('title', 'Presentation'))
+    slides = slides_data.get('slides', [])
+
+    slide_cards = []
+    for i, sd in enumerate(slides):
+        stitle = html_lib.escape(sd.get('title', ''))
+        layout_name = sd.get('layout', 'split-right')
+        body = sd.get('body', [])
+        img_url = slide_image_urls.get(i, '')
+
+        bullet_html = ''.join(
+            f'<li style="margin:4px 0;color:{t["html_body"]};font-size:12px;">'
+            f'{html_lib.escape(b)}</li>'
+            for b in body
+        )
+        text_block = (
+            f'<div style="font-weight:700;font-size:13px;color:{t["html_title"]};margin-bottom:6px;">'
+            f'{stitle}</div>'
+            f'<ul style="margin:0;padding-left:16px;">{bullet_html}</ul>'
+        )
+
+        img_tag = ''
+        if img_url:
+            img_tag = f'<img src="{html_lib.escape(img_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;" />'
+
+        # Layout-specific card HTML
+        if layout_name == 'hero':
+            card_inner = (
+                f'<div style="position:relative;width:100%;height:140px;background:#000;border-radius:8px;overflow:hidden;">'
+                f'<div style="position:absolute;inset:0;opacity:0.5;">{img_tag}</div>'
+                f'<div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;'
+                f'justify-content:center;height:100%;padding:12px;text-align:center;">'
+                f'<div style="font-weight:700;font-size:15px;color:#fff;margin-bottom:6px;">{stitle}</div>'
+                f'<div style="color:#ddd;font-size:11px;">{"  •  ".join(html_lib.escape(b) for b in body)}</div>'
+                f'</div></div>'
+            )
+        elif layout_name in ('split-right', 'split-left'):
+            img_side = f'<div style="flex:1;min-height:100px;background:{t["html_bg"]};border-radius:6px;overflow:hidden;">{img_tag}</div>'
+            text_side = f'<div style="flex:1;padding:8px;">{text_block}</div>'
+            if layout_name == 'split-left':
+                card_inner = f'<div style="display:flex;gap:8px;">{img_side}{text_side}</div>'
+            else:
+                card_inner = f'<div style="display:flex;gap:8px;">{text_side}{img_side}</div>'
+        else:  # top-strip
+            card_inner = (
+                f'<div>'
+                f'<div style="width:100%;height:80px;background:{t["html_bg"]};border-radius:6px 6px 0 0;overflow:hidden;">{img_tag}</div>'
+                f'<div style="padding:8px;">{text_block}</div>'
+                f'</div>'
+            )
+
+        label = html_lib.escape(layout_name)
+        slide_cards.append(
+            f'<div style="background:{t["html_card"]};border-radius:10px;padding:10px;'
+            f'margin-bottom:10px;border-left:4px solid {t["html_accent"]};">'
+            f'<div style="font-size:10px;color:{t["html_accent"]};margin-bottom:6px;text-transform:uppercase;">'
+            f'Slide {i + 1} — {label}</div>'
+            f'{card_inner}</div>'
+        )
+
+    cards_html = ''.join(slide_cards)
+    return (
+        f'<!DOCTYPE html><html><head><meta charset="utf-8">'
+        f'<style>*{{box-sizing:border-box;font-family:system-ui,sans-serif;margin:0;padding:0}}'
+        f'body{{background:{t["html_bg"]};padding:16px;min-height:100vh}}'
+        f'h1{{font-size:18px;font-weight:700;color:{t["html_title"]};'
+        f'margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid {t["html_accent"]}}}'
+        f'img{{display:block}}'
+        f'</style></head><body>'
+        f'<h1>{pres_title}</h1>{cards_html}'
+        f'</body></html>'
+    )
+
+
+async def _generate_slide_images(
+    request: Request,
+    slides: list[dict],
+    metadata: dict,
+    user,
+    __event_emitter__,
+) -> tuple[dict[int, bytes], dict[int, str]]:
+    """Generate images for each slide that has an image_prompt.
+    Returns (slide_idx -> image_bytes, slide_idx -> image_url)."""
+    from open_webui.models.files import Files
+    from open_webui.storage.provider import Storage
+
+    slide_images: dict[int, bytes] = {}
+    slide_image_urls: dict[int, str] = {}
+    total = sum(1 for s in slides if s.get('image_prompt'))
+    generated = 0
+
+    for idx, sd in enumerate(slides):
+        prompt = sd.get('image_prompt')
+        if not prompt:
+            continue
+
+        generated += 1
+        await __event_emitter__({
+            'type': 'status',
+            'data': {
+                'description': f'Generating image {generated}/{total}...',
+                'done': False,
+            },
+        })
+
+        try:
+            images = await image_generations(
+                request=request,
+                form_data=CreateImageForm(**{
+                    'prompt': prompt,
+                    'size': '1024x1024',
+                    'n': 1,
+                }),
+                metadata={
+                    'chat_id': metadata.get('chat_id'),
+                    'message_id': metadata.get('message_id'),
+                },
+                user=user,
+            )
+
+            if images and images[0].get('url'):
+                img_url = images[0]['url']
+                slide_image_urls[idx] = img_url
+
+                # Extract file_id from URL: /api/v1/files/{id}/content
+                parts = img_url.strip('/').split('/')
+                # Expected: ['api', 'v1', 'files', FILE_ID, 'content']
+                file_id = None
+                for pi, part in enumerate(parts):
+                    if part == 'files' and pi + 1 < len(parts):
+                        file_id = parts[pi + 1]
+                        break
+
+                if file_id:
+                    file_item = Files.get_file_by_id(file_id)
+                    if file_item and file_item.path:
+                        file_path = Storage.get_file(file_item.path)
+                        with open(file_path, 'rb') as f:
+                            slide_images[idx] = f.read()
+        except Exception as e:
+            log.warning(f'Failed to generate image for slide {idx + 1}: {e}')
+
+    return slide_images, slide_image_urls
+
+
+async def chat_presentation_handler(request: Request, form_data: dict, extra_params: dict, user):
+    import io
+    import uuid as _uuid
+    import base64 as _base64
+
+    from open_webui.models.files import Files, FileForm
+    from open_webui.storage.provider import Storage
+
+    metadata = extra_params.get('__metadata__', {})
+    chat_id = metadata.get('chat_id', None)
+    __event_emitter__ = extra_params.get('__event_emitter__', None)
+
+    if not __event_emitter__:
+        return form_data
+
+    await __event_emitter__(
+        {'type': 'status', 'data': {'description': 'Designing presentation...', 'done': False}}
+    )
+
+    user_message = get_last_user_message(form_data.get('messages', []))
+
+    models = request.app.state.MODELS
+    model_id = form_data.get('model')
+    task_model_id = get_task_model_id(
+        model_id,
+        request.app.state.config.TASK_MODEL,
+        request.app.state.config.TASK_MODEL_EXTERNAL,
+        models,
+    )
+
+    valid_layouts_str = ', '.join(_VALID_LAYOUTS)
+    slides_prompt = (
+        'You are a presentation designer. '
+        f'Create a JSON presentation for the following request:\n"{user_message}"\n\n'
+        'Respond ONLY with a valid JSON object using this exact schema:\n'
+        '{\n'
+        '  "title": "Presentation Title",\n'
+        '  "slides": [\n'
+        '    {\n'
+        f'      "layout": "<one of: {valid_layouts_str}>",\n'
+        '      "title": "Slide Title",\n'
+        '      "body": ["Bullet point 1", "Bullet point 2"],\n'
+        '      "image_prompt": "A detailed description of the image to generate for this slide"\n'
+        '    }\n'
+        '  ]\n'
+        '}\n\n'
+        'Layout descriptions:\n'
+        '- split-right: text on the left half, image on the right half. Best for content slides with supporting visuals.\n'
+        '- split-left: image on the left half, text on the right half. Good for variety.\n'
+        '- hero: full-bleed background image with large centered title overlay. Use for title/intro slides and dramatic impact.\n'
+        '- top-strip: full-width image strip on top (~40%), title and bullets below. Good for section headers.\n\n'
+        'Rules:\n'
+        '- Include 6-10 slides\n'
+        '- First slide should use "hero" layout as a title slide\n'
+        '- Last slide should be a conclusions/summary slide\n'
+        '- Vary layouts across slides for visual interest\n'
+        '- Each image_prompt must be a vivid, specific description suitable for AI image generation\n'
+        '- body array should have 2-5 short bullet points per slide\n'
+        '- Return JSON only, no extra text or markdown'
+    )
+
+    system_message_content = ''
+    try:
+        # Phase 1: LLM generates structured JSON
+        result = await generate_chat_completion(
+            request,
+            {
+                'model': task_model_id,
+                'messages': [{'role': 'user', 'content': slides_prompt}],
+                'stream': False,
+                'temperature': 0.7,
+                'metadata': {
+                    'task': 'presentation_generation',
+                    'chat_id': chat_id,
+                },
+            },
+            user,
+        )
+
+        raw = await _drain_response_to_text(result)
+        bracket_start = raw.find('{')
+        bracket_end = raw.rfind('}') + 1
+        if bracket_start == -1 or bracket_end <= bracket_start:
+            raise ValueError('No JSON object found in LLM response')
+
+        slides_data = json.loads(raw[bracket_start:bracket_end])
+        slides = slides_data.get('slides', [])
+
+        # Normalise layouts
+        for sd in slides:
+            if sd.get('layout') not in _VALID_LAYOUTS:
+                sd['layout'] = 'split-right'
+            # Support legacy 'bullets' key as well
+            if 'bullets' in sd and 'body' not in sd:
+                sd['body'] = sd.pop('bullets')
+
+        theme = _detect_pptx_theme(user_message or '')
+
+        # Phase 2: Generate images for each slide
+        slide_images: dict[int, bytes] = {}
+        slide_image_urls: dict[int, str] = {}
+        image_gen_available = getattr(request.app.state.config, 'ENABLE_IMAGE_GENERATION', False)
+        if image_gen_available:
+            await __event_emitter__(
+                {'type': 'status', 'data': {'description': 'Generating slide images...', 'done': False}}
+            )
+            slide_images, slide_image_urls = await _generate_slide_images(
+                request, slides, metadata, user, __event_emitter__,
+            )
+
+        # Phase 3: Build PPTX
+        await __event_emitter__(
+            {'type': 'status', 'data': {'description': 'Building presentation...', 'done': False}}
+        )
+        file_bytes = _build_pptx(slides_data, theme=theme, slide_images=slide_images)
+
+        pres_title = slides_data.get('title', 'Presentation')
+        filename_base = re.sub(r'[^\w\-]', '_', pres_title)[:50]
+        filename = f'{filename_base}.pptx'
+        content_type = (
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        )
+
+        file_id = str(_uuid.uuid4())
+        storage_filename = f'{file_id}_{filename}'
+
+        contents, file_path = Storage.upload_file(
+            io.BytesIO(file_bytes),
+            storage_filename,
+            {
+                'OpenWebUI-User-Email': user.email,
+                'OpenWebUI-User-Id': user.id,
+                'OpenWebUI-User-Name': user.name,
+                'OpenWebUI-File-Id': file_id,
+            },
+        )
+
+        Files.insert_new_file(
+            user.id,
+            FileForm(
+                id=file_id,
+                filename=filename,
+                path=file_path,
+                data={},
+                meta={
+                    'name': filename,
+                    'content_type': content_type,
+                    'size': len(file_bytes),
+                },
+            ),
+        )
+
+        file_url = f'/api/v1/files/{file_id}/content/{filename}'
+        slide_count = len(slides)
+
+        # Emit HTML slide preview
+        preview_html = _build_slide_preview_html(slides_data, theme=theme, slide_image_urls=slide_image_urls)
+        preview_data_uri = (
+            'data:text/html;base64,'
+            + _base64.b64encode(preview_html.encode('utf-8')).decode('ascii')
+        )
+        await __event_emitter__(
+            {'type': 'embeds', 'data': {'embeds': [preview_data_uri]}}
+        )
+
+        img_count = len(slide_images)
+        await __event_emitter__(
+            {'type': 'status', 'data': {'description': 'Presentation created!', 'done': True}}
+        )
+        await __event_emitter__(
+            {
+                'type': 'files',
+                'data': {
+                    'files': [
+                        {
+                            'type': 'file',
+                            'name': filename,
+                            'url': file_url,
+                            'size': len(file_bytes),
+                            'content_type': content_type,
+                        }
+                    ]
+                },
+            }
+        )
+
+        img_note = f' with {img_count} generated images' if img_count else ''
+        system_message_content = (
+            f'<context>A PowerPoint presentation "{pres_title}" with {slide_count} slides{img_note} '
+            'has been created and is now shown to the user as a downloadable file attachment. '
+            'Briefly tell the user their presentation is ready and describe what it covers.</context>'
+        )
+
+    except Exception as e:
+        log.exception(e)
+        await __event_emitter__(
+            {'type': 'status', 'data': {'description': 'Failed to create presentation', 'done': True}}
+        )
+        system_message_content = (
+            f'<context>Presentation generation failed with error: {e}. '
+            'Tell the user there was an error creating the presentation.</context>'
+        )
+
+    if system_message_content:
+        form_data['messages'] = add_or_update_system_message(
+            system_message_content, form_data['messages']
+        )
 
     return form_data
 
@@ -2328,6 +3181,18 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
     features = form_data.pop('features', None) or {}
     extra_params['__features__'] = features
+
+    # Auto memory read (long-term user context):
+    # enabled by default when memory subsystem is active, unless explicitly disabled
+    # by `features.memory = false`.
+    use_memory_context = (
+        request.app.state.config.ENABLE_MEMORIES
+        and metadata.get('params', {}).get('function_calling') != 'native'
+        and features.get('memory', True)
+    )
+    if use_memory_context:
+        form_data = await chat_memory_handler(request, form_data, extra_params, user)
+
     if features:
         if 'voice' in features and features['voice']:
             if request.app.state.config.VOICE_MODE_PROMPT_TEMPLATE != None:
@@ -2341,27 +3206,31 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                     form_data['messages'],
                 )
 
-        if 'memory' in features and features['memory']:
-            # Skip forced memory injection when native FC is enabled - model can use memory tools
-            if metadata.get('params', {}).get('function_calling') != 'native':
-                form_data = await chat_memory_handler(request, form_data, extra_params, user)
-
         if 'web_search' in features and features['web_search']:
             # Skip forced RAG web search when native FC is enabled - model can use web_search tool
             if metadata.get('params', {}).get('function_calling') != 'native':
-                form_data = await chat_web_search_handler(request, form_data, extra_params, user)
+                # research mode overrides the standard web_search handler
+                if features.get('research'):
+                    form_data = await chat_research_handler(request, form_data, extra_params, user)
+                else:
+                    form_data = await chat_web_search_handler(request, form_data, extra_params, user)
 
         if 'image_generation' in features and features['image_generation']:
             # Skip forced image generation when native FC is enabled - model can use generate_image tool
             if metadata.get('params', {}).get('function_calling') != 'native':
                 form_data = await chat_image_generation_handler(request, form_data, extra_params, user)
 
+        if 'presentation' in features and features['presentation']:
+            if metadata.get('params', {}).get('function_calling') != 'native':
+                form_data = await chat_presentation_handler(request, form_data, extra_params, user)
+
         if 'code_interpreter' in features and features['code_interpreter']:
             engine = getattr(request.app.state.config, 'CODE_INTERPRETER_ENGINE', 'pyodide')
+            function_calling_mode = metadata.get('params', {}).get('function_calling')
 
             # Skip XML-tag prompt injection when native FC is enabled —
             # execute_code will be injected as a builtin tool instead
-            if metadata.get('params', {}).get('function_calling') != 'native':
+            if function_calling_mode != 'native':
                 prompt = (
                     request.app.state.config.CODE_INTERPRETER_PROMPT_TEMPLATE
                     if request.app.state.config.CODE_INTERPRETER_PROMPT_TEMPLATE != ''
@@ -2372,18 +3241,14 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 if engine != 'jupyter':
                     prompt += CODE_INTERPRETER_PYODIDE_PROMPT
 
-                form_data['messages'] = add_or_update_user_message(
+                form_data['messages'] = add_or_update_system_message(
                     prompt,
                     form_data['messages'],
+                    append=True,
                 )
-            else:
-                # Native FC: tool docstring can't be dynamic, so inject
-                # filesystem context into messages for pyodide engine
-                if engine != 'jupyter':
-                    form_data['messages'] = add_or_update_user_message(
-                        CODE_INTERPRETER_PYODIDE_PROMPT,
-                        form_data['messages'],
-                    )
+
+    # Audio transcription: full-context mode for audio/video files with transcription requests
+    form_data = await chat_audio_transcription_handler(request, form_data, extra_params, user)
 
     tool_ids = form_data.pop('tool_ids', None)
     terminal_id = form_data.pop('terminal_id', None)
@@ -2430,15 +3295,12 @@ async def process_chat_payload(request, form_data, user, metadata, model):
             )
 
     prompt = get_last_user_message(form_data['messages'])
-    # TODO: re-enable URL extraction from prompt
-    # urls = []
-    # if prompt and len(prompt or "") < 500 and (not files or len(files) == 0):
-    #     urls = extract_urls(prompt)
+    urls = []
+    if prompt and len(prompt or '') < 1000:
+        raw_urls = extract_urls(prompt)
+        urls = raw_urls[:3]  # limit to 3 URLs to avoid abuse
 
     if files:
-        if not files:
-            files = []
-
         for file_item in files:
             if file_item.get('type', 'file') == 'folder':
                 # Get folder files
@@ -2449,9 +3311,12 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                         files = [f for f in files if f.get('id', None) != folder_id]
                         files = [*files, *folder.data['files']]
 
-        # files = [*files, *[{"type": "url", "url": url, "name": url} for url in urls]]
+        if urls:
+            files = [*files, *[{'type': 'url', 'url': url, 'name': url} for url in urls]]
         # Remove duplicate files based on their content
         files = list({json.dumps(f, sort_keys=True): f for f in files}.values())
+    elif urls:
+        files = [{'type': 'url', 'url': url, 'name': url} for url in urls]
 
     metadata = {
         **metadata,
@@ -4733,6 +5598,11 @@ async def streaming_chat_response_handler(response, ctx):
 
     else:
         # Fallback to the original response
+        if not hasattr(response, 'body_iterator'):
+            # Non-streaming responses (e.g. JSONResponse) do not expose body_iterator.
+            # Return them as-is to avoid stream-wrapper crashes.
+            return response
+
         async def stream_wrapper(original_generator, events):
             def wrap_item(item):
                 return f'data: {item}\n\n'

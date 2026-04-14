@@ -49,8 +49,57 @@
 	 * Handle link clicks - intercept same-origin app URLs for in-app navigation
 	 */
 	const handleLinkClick = (e: MouseEvent, href: string) => {
+		// Fast path for custom in-app model switch links.
+		// Some browsers may attempt to open unknown schemes immediately,
+		// so intercept this before generic URL parsing.
+		if (href?.startsWith('gpthub://select-model')) {
+			e.preventDefault();
+			try {
+				const url = new URL(href);
+				const modelId = url.searchParams.get('model');
+				if (modelId) {
+					window.dispatchEvent(
+						new CustomEvent('gpthub:model-select', {
+							detail: { modelId }
+						})
+					);
+				}
+			} catch {
+				const match = href.match(/[?&]model=([^&]+)/);
+				const modelId = match?.[1] ? decodeURIComponent(match[1]) : null;
+				if (modelId) {
+					window.dispatchEvent(
+						new CustomEvent('gpthub:model-select', {
+							detail: { modelId }
+						})
+					);
+				} else {
+					toast.error(i18n.t('Failed to parse model switch link'));
+				}
+			}
+			return;
+		}
+
 		try {
 			const url = new URL(href, window.location.origin);
+			const isSameOriginSelectModel =
+				url.origin === window.location.origin && url.pathname === '/select-model';
+			const isCustomSchemeSelectModel =
+				url.protocol === 'gpthub:' && (url.hostname === 'select-model' || url.pathname === '/select-model');
+
+			if (isSameOriginSelectModel || isCustomSchemeSelectModel) {
+				const modelId = url.searchParams.get('model');
+				if (modelId) {
+					e.preventDefault();
+					window.dispatchEvent(
+						new CustomEvent('gpthub:model-select', {
+							detail: { modelId }
+						})
+					);
+				}
+				return;
+			}
+
 			// Check if same origin and an in-app route
 			if (
 				url.origin === window.location.origin &&

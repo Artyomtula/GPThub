@@ -5,7 +5,8 @@ export const uploadFile = async (
 	token: string,
 	file: File,
 	metadata?: object | null,
-	process?: boolean | null
+	process?: boolean | null,
+	onProgress?: (progress: number) => void
 ) => {
 	const data = new FormData();
 	data.append('file', file);
@@ -18,31 +19,47 @@ export const uploadFile = async (
 		searchParams.append('process', String(process));
 	}
 
-	let error = null;
+	// Use XMLHttpRequest to track upload progress
+	let res: any = await new Promise((resolve, reject) => {
+		const xhr = new XMLHttpRequest();
+		xhr.open('POST', `${WEBUI_API_BASE_URL}/files/?${searchParams.toString()}`);
+		xhr.setRequestHeader('Accept', 'application/json');
+		xhr.setRequestHeader('authorization', `Bearer ${token}`);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/?${searchParams.toString()}`, {
-		method: 'POST',
-		headers: {
-			Accept: 'application/json',
-			authorization: `Bearer ${token}`
-		},
-		body: data
-	})
-		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
-		})
-		.catch((err) => {
-			error = err.detail || err.message;
-			console.error(err);
-			return null;
-		});
+		if (onProgress) {
+			xhr.upload.onprogress = (e: ProgressEvent) => {
+				if (e.lengthComputable) {
+					// Cap at 99 — the final 100 signals server confirmed receipt
+					onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)));
+				}
+			};
+		}
 
-	if (error) {
-		throw error;
-	}
+		xhr.onload = () => {
+			if (xhr.status >= 200 && xhr.status < 300) {
+				try {
+					resolve(JSON.parse(xhr.responseText));
+				} catch {
+					reject('Invalid server response');
+				}
+			} else {
+				try {
+					const err = JSON.parse(xhr.responseText);
+					reject(err.detail || err.message || `Upload failed: ${xhr.status}`);
+				} catch {
+					reject(`Upload failed: ${xhr.status}`);
+				}
+			}
+		};
+
+		xhr.onerror = () => reject('Network error during upload');
+		xhr.onabort = () => reject('Upload aborted');
+		xhr.send(data);
+	});
 
 	if (res) {
+		if (onProgress) onProgress(100);
+
 		const status = await getFileProcessStatus(token, res.id);
 
 		if (status && status.ok) {
@@ -85,10 +102,6 @@ export const uploadFile = async (
 				}
 			}
 		}
-	}
-
-	if (error) {
-		throw error;
 	}
 
 	return res;

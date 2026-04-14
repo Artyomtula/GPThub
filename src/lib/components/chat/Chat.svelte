@@ -30,6 +30,7 @@
 		audioQueue,
 		showControls,
 		showCallOverlay,
+		pendingVoiceResponse,
 		currentChatPage,
 		temporaryChatEnabled,
 		mobile,
@@ -147,9 +148,11 @@
 	let selectedFilterIds = [];
 	let pendingOAuthTools = [];
 
-	let imageGenerationEnabled = false;
+	let imageGenerationEnabled = true;
 	let webSearchEnabled = false;
+	let deepResearchEnabled = false;
 	let codeInterpreterEnabled = false;
+	let presentationEnabled = false;
 
 	let showCommands = false;
 
@@ -187,7 +190,9 @@
 		selectedToolIds = [];
 		selectedFilterIds = [];
 		webSearchEnabled = false;
-		imageGenerationEnabled = false;
+		deepResearchEnabled = false;
+		imageGenerationEnabled = true;
+		presentationEnabled = false;
 
 		const storageChatInput = sessionStorage.getItem(
 			`chat-input${chatIdProp ? `-${chatIdProp}` : ''}`
@@ -217,6 +222,7 @@
 						selectedToolIds = input.selectedToolIds;
 						selectedFilterIds = input.selectedFilterIds;
 						webSearchEnabled = input.webSearchEnabled;
+						deepResearchEnabled = input.deepResearchEnabled ?? false;
 						imageGenerationEnabled = input.imageGenerationEnabled;
 						codeInterpreterEnabled = input.codeInterpreterEnabled;
 					}
@@ -278,8 +284,10 @@
 		selectedFilterIds = [];
 		pendingOAuthTools = [];
 		webSearchEnabled = false;
-		imageGenerationEnabled = false;
+		deepResearchEnabled = false;
+		imageGenerationEnabled = true;
 		codeInterpreterEnabled = false;
+		presentationEnabled = false;
 
 		if (selectedModelIds.filter((id) => id).length > 0) {
 			setDefaults();
@@ -353,6 +361,7 @@
 					($user?.role === 'admin' || $user?.permissions?.features?.web_search)
 				) {
 					webSearchEnabled = model.info.meta.defaultFeatureIds.includes('web_search');
+					deepResearchEnabled = model.info.meta.defaultFeatureIds.includes('research');
 				}
 
 				if (
@@ -414,6 +423,58 @@
 		}
 	};
 
+	const speakShortText = async (text: string) => {
+		if (!text || typeof window === 'undefined') return;
+		try {
+			const utterance = new SpeechSynthesisUtterance(text);
+			utterance.lang = $i18n.resolvedLanguage ?? 'ru-RU';
+			utterance.rate = $settings?.audio?.tts?.playbackRate ?? 1;
+			window.speechSynthesis.speak(utterance);
+		} catch (error) {
+			console.error('Failed to play short TTS', error);
+		}
+	};
+
+	const insertVoiceAckMessage = async (targetMessage, content: string) => {
+		if (!targetMessage?.parentId || !content) return;
+
+		const parentMessage = history.messages[targetMessage.parentId];
+		if (!parentMessage) return;
+
+		let ackMessageId = parentMessage.childrenIds?.find(
+			(id) => history.messages[id]?.voiceAck === true
+		);
+
+		if (!ackMessageId) {
+			ackMessageId = uuidv4();
+			parentMessage.childrenIds = [
+				ackMessageId,
+				...(parentMessage.childrenIds ?? []).filter((id) => id !== ackMessageId)
+			];
+			history.messages[parentMessage.id] = parentMessage;
+		}
+
+		history.messages[ackMessageId] = {
+			id: ackMessageId,
+			parentId: parentMessage.id,
+			childrenIds: [],
+			role: 'assistant',
+			content,
+			done: true,
+			voiceAck: true,
+			model: targetMessage.model,
+			modelName: targetMessage.modelName,
+			modelIdx: targetMessage.modelIdx ?? 0,
+			timestamp: Math.floor(Date.now() / 1000)
+		};
+
+		history = history;
+		await tick();
+		if (autoScroll) {
+			scrollToBottom('smooth');
+		}
+	};
+
 	const chatEventHandler = async (event, cb) => {
 		console.log(event);
 
@@ -463,11 +524,20 @@
 					}, 100);
 				} else if (type === 'chat:message:error') {
 					message.error = data.error;
+					message.done = true;
+					taskIds = null;
+					await processNextInQueue($chatId);
 				} else if (type === 'chat:message:follow_ups') {
 					message.followUps = data.follow_ups;
 
 					if (autoScroll) {
 						scrollToBottom('smooth');
+					}
+				} else if (type === 'chat:voice:ack') {
+					const ackContent = data?.content;
+					if (ackContent && typeof ackContent === 'string') {
+						await insertVoiceAckMessage(message, ackContent);
+						await speakShortText(ackContent);
 					}
 				} else if (type === 'chat:message:favorite') {
 					// Update message favorite status
@@ -626,6 +696,24 @@
 		}
 	};
 
+	const onModelSelectFromChat = (event: Event) => {
+		const customEvent = event as CustomEvent<{ modelId?: string }>;
+		const modelId = customEvent?.detail?.modelId;
+		if (!modelId) return;
+
+		const modelExists = $models.some((model) => model.id === modelId);
+		if (!modelExists) {
+			toast.error($i18n.t('Model {{modelId}} not found', { modelId }));
+			return;
+		}
+
+		atSelectedModel = undefined;
+		modelSelectionMode = 'manual';
+		selectedModels = [modelId];
+
+		toast.success($i18n.t('Model switched to {{modelId}}', { modelId }));
+	};
+
 	const savedModelIds = async () => {
 		if (
 			$selectedFolder &&
@@ -656,6 +744,7 @@
 		console.log('mounted');
 
 		window.addEventListener('message', onMessageHandler);
+		window.addEventListener('gpthub:model-select', onModelSelectFromChat as EventListener);
 		$socket?.on('events', chatEventHandler);
 
 		$audioQueue?.destroy();
@@ -742,8 +831,10 @@
 				selectedToolIds = [];
 				selectedFilterIds = [];
 				webSearchEnabled = false;
-				imageGenerationEnabled = false;
+				deepResearchEnabled = false;
+				imageGenerationEnabled = true;
 				codeInterpreterEnabled = false;
+				presentationEnabled = false;
 
 				try {
 					const input = JSON.parse(storageChatInput);
@@ -754,6 +845,7 @@
 						selectedToolIds = input.selectedToolIds;
 						selectedFilterIds = input.selectedFilterIds;
 						webSearchEnabled = input.webSearchEnabled;
+						deepResearchEnabled = input.deepResearchEnabled ?? false;
 						imageGenerationEnabled = input.imageGenerationEnabled;
 						codeInterpreterEnabled = input.codeInterpreterEnabled;
 					}
@@ -771,6 +863,7 @@
 				showControlsSubscribe();
 				selectedFolderSubscribe();
 				window.removeEventListener('message', onMessageHandler);
+				window.removeEventListener('gpthub:model-select', onModelSelectFromChat as EventListener);
 				$socket?.off('events', chatEventHandler);
 				audioQueueInstance?.destroy();
 				audioQueue.set(null);
@@ -1178,6 +1271,10 @@
 
 		if ($page.url.searchParams.get('web-search') === 'true') {
 			webSearchEnabled = true;
+		}
+
+		if ($page.url.searchParams.get('deep-research') === 'true') {
+			deepResearchEnabled = true;
 		}
 
 		if ($page.url.searchParams.get('image-generation') === 'true') {
@@ -1621,6 +1718,17 @@
 
 		if (error) {
 			await handleOpenAIError(error, message);
+			if (!done) {
+				// Error delivered without an explicit done:true — force cleanup so
+				// taskIds is cleared and the user can send new messages.
+				chatCompletedHandler(
+					chatId,
+					message.model,
+					message.id,
+					createMessagesList(history, message.id)
+				);
+				await processNextInQueue(chatId);
+			}
 		}
 
 		if (sources && !message?.sources) {
@@ -1723,7 +1831,10 @@
 				copyToClipboard(message.content);
 			}
 
-			if ($settings.responseAutoPlayback && !$showCallOverlay) {
+			if ($pendingVoiceResponse && !$showCallOverlay) {
+				pendingVoiceResponse.set(false);
+				await speakShortText($i18n.t('Done'));
+			} else if ($settings.responseAutoPlayback && !$showCallOverlay) {
 				await tick();
 				document.getElementById(`speak-button-${message.id}`)?.click();
 			}
@@ -1856,15 +1967,7 @@
 			}
 		}
 
-		if (history?.currentId) {
-			const currentMessage = history.messages[history.currentId];
-
-			if (currentMessage.error && !currentMessage.content) {
-				// Error in response
-				toast.error($i18n.t(`Oops! There was an error in the previous response.`));
-				return;
-			}
-		}
+		// Note: don't block submission after errors — user must be able to continue the conversation.
 
 		messageInput?.setText('');
 		prompt = '';
@@ -2072,7 +2175,9 @@
 					$config?.features?.enable_web_search &&
 					($user?.role === 'admin' || $user?.permissions?.features?.web_search)
 						? webSearchEnabled
-						: false
+						: false,
+				deep_research: deepResearchEnabled,
+				presentation: presentationEnabled
 			};
 
 		const currentModels = atSelectedModel?.id ? [atSelectedModel.id] : selectedModels;
@@ -2941,8 +3046,10 @@
 									bind:selectedFilterIds
 									bind:imageGenerationEnabled
 									bind:codeInterpreterEnabled
+									bind:presentationEnabled
 									{pendingOAuthTools}
 									bind:webSearchEnabled
+									bind:deepResearchEnabled
 									bind:atSelectedModel
 									bind:showCommands
 									bind:dragged
@@ -3026,7 +3133,9 @@
 									bind:selectedFilterIds
 									bind:imageGenerationEnabled
 									bind:codeInterpreterEnabled
+									bind:presentationEnabled
 									bind:webSearchEnabled
+									bind:deepResearchEnabled
 									bind:atSelectedModel
 									bind:showCommands
 									bind:dragged

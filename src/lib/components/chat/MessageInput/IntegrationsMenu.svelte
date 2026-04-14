@@ -23,6 +23,7 @@
 	import Wrench from '$lib/components/icons/Wrench.svelte';
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
+	import BookOpen from '$lib/components/icons/BookOpen.svelte';
 	import Photo from '$lib/components/icons/Photo.svelte';
 	import Terminal from '$lib/components/icons/Terminal.svelte';
 	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
@@ -41,10 +42,14 @@
 
 	export let showWebSearchButton = false;
 	export let webSearchEnabled = false;
+	export let showDeepResearchButton = false;
+	export let deepResearchEnabled = false;
 	export let showImageGenerationButton = false;
 	export let imageGenerationEnabled = false;
 	export let showCodeInterpreterButton = false;
 	export let codeInterpreterEnabled = false;
+	export let showPresentationButton = false;
+	export let presentationEnabled = false;
 
 	export let onShowValves: Function;
 	export let onClose: Function;
@@ -245,6 +250,39 @@
 						</Tooltip>
 					{/if}
 
+					{#if showDeepResearchButton}
+						<Tooltip
+							content={$i18n.t('Use a deeper reasoning mode without forcing web search')}
+							placement="top-start"
+						>
+							<button
+								class="flex w-full justify-between gap-2 items-center px-3 py-1.5 text-sm cursor-pointer rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50"
+								on:click={() => {
+									deepResearchEnabled = !deepResearchEnabled;
+								}}
+							>
+								<div class="flex-1 truncate">
+									<div class="flex flex-1 gap-2 items-center">
+										<div class="shrink-0">
+											<BookOpen className="size-4" strokeWidth="1.5" />
+										</div>
+
+										<div class=" truncate">{$i18n.t('Deep Thinking')}</div>
+									</div>
+								</div>
+
+								<div class=" shrink-0">
+									<Switch
+										state={deepResearchEnabled}
+										on:change={async () => {
+											await tick();
+										}}
+									/>
+								</div>
+							</button>
+						</Tooltip>
+					{/if}
+
 					{#if showImageGenerationButton}
 						<Tooltip content={$i18n.t('Generate an image')} placement="top-start">
 							<button
@@ -303,6 +341,50 @@
 										state={codeInterpreterEnabled}
 										on:change={async (e) => {
 											const state = e.detail;
+											await tick();
+										}}
+									/>
+								</div>
+							</button>
+						</Tooltip>
+					{/if}
+
+					{#if showPresentationButton}
+						<Tooltip content={$i18n.t('Generate a PowerPoint presentation')} placement="top-start">
+							<button
+								class="flex w-full justify-between gap-2 items-center px-3 py-1.5 text-sm cursor-pointer rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50"
+								aria-pressed={presentationEnabled}
+								on:click={() => {
+									presentationEnabled = !presentationEnabled;
+								}}
+							>
+								<div class="flex-1 truncate">
+									<div class="flex flex-1 gap-2 items-center">
+										<div class="shrink-0">
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="size-4"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke-width="1.5"
+												stroke="currentColor"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h12A2.25 2.25 0 0 0 20.25 14.25V3M3.75 3h16.5M3.75 21h16.5M12 3v18"
+												/>
+											</svg>
+										</div>
+
+										<div class=" truncate">{$i18n.t('Presentation')}</div>
+									</div>
+								</div>
+
+								<div class=" shrink-0">
+									<Switch
+										state={presentationEnabled}
+										on:change={async (e) => {
 											await tick();
 										}}
 									/>

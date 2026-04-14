@@ -25,20 +25,6 @@ VIRTUAL_MODEL_SPECS: tuple[VirtualModelSpec, ...] = (
         description='Automatically picks the best model for your request — just type and go.',
         tags=('GPTHub', 'Virtual', 'Auto'),
     ),
-    VirtualModelSpec(
-        id='gpthub:code',
-        name='Code Assistant',
-        capability='code',
-        description='Writes, reviews and explains code in any programming language.',
-        tags=('GPTHub', 'Virtual', 'Code'),
-    ),
-    VirtualModelSpec(
-        id='gpthub:image',
-        name='Image Generator',
-        capability='image_generation',
-        description='Creates an image from your text description.',
-        tags=('GPTHub', 'Virtual', 'Image'),
-    ),
 )
 
 
@@ -49,6 +35,9 @@ CAPABILITY_ORDER: tuple[str, ...] = (
     'image_generation',
     'audio_transcription',
     'audio_speech',
+    'web_search',
+    'research',
+    'presentation',
 )
 
 
@@ -89,6 +78,18 @@ def get_virtual_capability(model: dict[str, Any] | None, model_id: str | None = 
             return capability
 
     if isinstance(model_id, str):
+        # Backward compatibility: legacy virtual assistant ids
+        if model_id == 'gpthub:code':
+            return 'code'
+        if model_id == 'gpthub:vision':
+            return 'vision'
+        if model_id == 'gpthub:web':
+            return 'web_search'
+        if model_id == 'gpthub:image':
+            return 'image_generation'
+        if model_id == 'gpthub:research':
+            return 'research'
+
         for spec in VIRTUAL_MODEL_SPECS:
             if spec.id == model_id:
                 return spec.capability
@@ -212,10 +213,30 @@ def infer_request_capability(prompt: str) -> str:
         return 'image_generation'
     if re.search(r'(что на изображ|проанализир.*фото|vision|analy[sz]e image|caption image)', normalized):
         return 'vision'
+    if re.search(
+        r'(создай.*презентац|сделай.*презентац|напиши.*презентац|презентац.*тему|'
+        r'сгенерир.*презентац|слайды.*тем|сделай.*слайд|'
+        r'create.*presentation|make.*presentation|generate.*presentation|build.*presentation|'
+        r'create.*slides|make.*slides|write.*presentation|powerpoint|keynote|pptx)',
+        normalized,
+    ):
+        return 'presentation'
     if re.search(r'(код|code|bug|debug|refactor|typescript|javascript|python|sql|regex|api)', normalized):
         return 'code'
-    if re.search(r'(audio|speech|voice|transcrib|распознай|аудио|транскриб)', normalized):
+    if re.search(r'(audio|speech|voice|transcrib|распознай|расшифруй|аудио|транскриб|запись)', normalized):
         return 'audio_transcription'
+    if re.search(
+        r'(исследуй|напиши.*отчёт|напиши.*доклад|deep.?research|research.*report|comprehensive.*analysis|'
+        r'подготовь.*анализ|подробный.*анализ|detailed.*report)',
+        normalized,
+    ):
+        return 'research'
+    if re.search(
+        r'(найди в интернет|поищи|найди информ|актуальн|последн.*новост|что сейчас|'
+        r'search.*web|find.*online|latest.*news|current.*price|today.*weather)',
+        normalized,
+    ):
+        return 'web_search'
 
     return 'text'
 
@@ -249,12 +270,26 @@ def _virtual_capabilities(capability: str) -> dict[str, bool]:
         return {
             **defaults,
             'vision': True,
+            'image_generation': True,
         }
 
     if capability == 'image_generation':
         return {
             **defaults,
             'image_generation': True,
+        }
+
+    if capability == 'web_search':
+        return {
+            **defaults,
+            'web_search': True,
+        }
+
+    if capability == 'research':
+        return {
+            **defaults,
+            'web_search': True,  # research uses web_search under the hood
+            'research': True,
         }
 
     return defaults

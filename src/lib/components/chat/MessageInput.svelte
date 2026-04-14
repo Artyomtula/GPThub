@@ -26,6 +26,7 @@
 		models,
 		config,
 		showCallOverlay,
+		pendingVoiceResponse,
 		tools,
 		toolServers,
 		terminalServers,
@@ -78,6 +79,7 @@
 
 	import XMark from '../icons/XMark.svelte';
 	import GlobeAlt from '../icons/GlobeAlt.svelte';
+	import BookOpen from '../icons/BookOpen.svelte';
 	import Photo from '../icons/Photo.svelte';
 	import Wrench from '../icons/Wrench.svelte';
 	import Sparkles from '../icons/Sparkles.svelte';
@@ -129,7 +131,9 @@
 
 	export let imageGenerationEnabled = false;
 	export let webSearchEnabled = false;
+	export let deepResearchEnabled = false;
 	export let codeInterpreterEnabled = false;
+	export let presentationEnabled = false;
 
 	export let pendingOAuthTools = [];
 
@@ -171,6 +175,7 @@
 		selectedFilterIds,
 		imageGenerationEnabled,
 		webSearchEnabled,
+		deepResearchEnabled,
 		codeInterpreterEnabled
 	});
 
@@ -492,6 +497,9 @@
 		$config?.features?.enable_web_search &&
 		($_user.role === 'admin' || $_user?.permissions?.features?.web_search);
 
+	let showDeepResearchButton = false;
+	$: showDeepResearchButton = true;
+
 	let showImageGenerationButton = false;
 	$: showImageGenerationButton =
 		$config?.features?.enable_image_generation &&
@@ -504,6 +512,8 @@
 			codeInterpreterCapableModels.length &&
 		$config?.features?.enable_code_interpreter &&
 		($_user.role === 'admin' || $_user?.permissions?.features?.code_interpreter);
+
+	let showPresentationButton = true;
 
 	// Disable code interpreter when terminal is active (mutually exclusive)
 	$: if ($selectedTerminalId && codeInterpreterEnabled) {
@@ -578,6 +588,7 @@
 			status: 'uploading',
 			size: file.size,
 			error: '',
+			uploadProgress: null as number | null,
 			itemId: tempItemId,
 			...itemData
 		};
@@ -603,7 +614,10 @@
 				}
 
 				// During the file upload, file content is automatically extracted.
-				const uploadedFile = await uploadFile(localStorage.token, file, metadata, process);
+				const uploadedFile = await uploadFile(localStorage.token, file, metadata, process, (p) => {
+					fileItem.uploadProgress = p;
+					files = files;
+				});
 
 				if (uploadedFile) {
 					console.log('File upload completed:', {
@@ -1189,6 +1203,7 @@
 								document.getElementById('chat-input')?.focus();
 
 								if ($settings?.speechAutoSend ?? false) {
+									pendingVoiceResponse.set(true);
 									dispatch('submit', prompt);
 								}
 							}}
@@ -1336,6 +1351,7 @@
 												type={file.type}
 												size={file?.size}
 												loading={file.status === 'uploading'}
+												progress={file.uploadProgress ?? null}
 												dismissible={true}
 												edit={true}
 												small={true}
@@ -1503,6 +1519,7 @@
 															selectedFilterIds = [];
 
 															webSearchEnabled = false;
+															deepResearchEnabled = false;
 															imageGenerationEnabled = false;
 															codeInterpreterEnabled = false;
 														}
@@ -1612,7 +1629,7 @@
 										</div>
 									</InputMenu>
 
-									{#if showWebSearchButton || showImageGenerationButton || showCodeInterpreterButton || showToolsButton || (toggleFilters && toggleFilters.length > 0)}
+									{#if showWebSearchButton || showDeepResearchButton || showImageGenerationButton || showCodeInterpreterButton || showPresentationButton || showToolsButton || (toggleFilters && toggleFilters.length > 0)}
 										<div
 											class="flex self-center w-[1px] h-4 mx-1 bg-gray-200/50 dark:bg-gray-800/50"
 										/>
@@ -1621,13 +1638,17 @@
 											selectedModels={atSelectedModel ? [atSelectedModel.id] : selectedModels}
 											{toggleFilters}
 											{showWebSearchButton}
+											{showDeepResearchButton}
 											{showImageGenerationButton}
 											{showCodeInterpreterButton}
+											{showPresentationButton}
 											bind:selectedToolIds
 											bind:selectedFilterIds
 											bind:webSearchEnabled
+											bind:deepResearchEnabled
 											bind:imageGenerationEnabled
 											bind:codeInterpreterEnabled
+											bind:presentationEnabled
 											closeOnOutsideClick={integrationsMenuCloseOnOutsideClick}
 											onShowValves={(e) => {
 												const { type, id } = e;
@@ -1735,7 +1756,9 @@
 										{#if webSearchEnabled}
 											<Tooltip content={$i18n.t('Web Search')} placement="top">
 												<button
-													on:click|preventDefault={() => (webSearchEnabled = !webSearchEnabled)}
+													on:click|preventDefault={() => {
+														webSearchEnabled = !webSearchEnabled;
+													}}
 													type="button"
 													class="group p-[7px] flex gap-1.5 items-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden max-w-full overflow-hidden {webSearchEnabled ||
 													($settings?.webSearch ?? false) === 'always'
@@ -1743,6 +1766,25 @@
 														: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
 												>
 													<GlobeAlt className="size-4" strokeWidth="1.75" />
+													<div class="hidden group-hover:block">
+														<XMark className="size-4" strokeWidth="1.75" />
+													</div>
+												</button>
+											</Tooltip>
+										{/if}
+
+										{#if deepResearchEnabled}
+											<Tooltip content={$i18n.t('Deep Thinking')} placement="top">
+												<button
+													on:click|preventDefault={() => {
+														deepResearchEnabled = !deepResearchEnabled;
+													}}
+													type="button"
+													class="group p-[7px] flex gap-1.5 items-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden max-w-full overflow-hidden {deepResearchEnabled
+														? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-700/10 border border-sky-200/40 dark:border-sky-500/20'
+														: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
+												>
+													<BookOpen className="size-4" strokeWidth="1.75" />
 													<div class="hidden group-hover:block">
 														<XMark className="size-4" strokeWidth="1.75" />
 													</div>

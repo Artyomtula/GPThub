@@ -475,11 +475,12 @@ def get_builtin_tools(
     ):
         builtin_functions.append(edit_image)
 
-    # Add code interpreter tool if builtin category enabled AND enabled globally AND model has code_interpreter capability
+    # Add code interpreter tool if builtin category enabled AND enabled globally AND feature is enabled.
+    # Do not hard-block by model capability metadata: many text LLMs can still invoke execute_code
+    # correctly, while model metadata may be incomplete or inconsistent across providers.
     if (
         is_builtin_tool_enabled('code_interpreter')
         and getattr(request.app.state.config, 'ENABLE_CODE_INTERPRETER', True)
-        and get_model_capability('code_interpreter')
         and features.get('code_interpreter')
     ):
         builtin_functions.append(execute_code)
