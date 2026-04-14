@@ -48,6 +48,8 @@
 	export let imageGenerationEnabled = false;
 	export let showCodeInterpreterButton = false;
 	export let codeInterpreterEnabled = false;
+	export let showPresentationButton = false;
+	export let presentationEnabled = false;
 
 	export let onShowValves: Function;
 	export let onClose: Function;
@@ -339,6 +341,50 @@
 										state={codeInterpreterEnabled}
 										on:change={async (e) => {
 											const state = e.detail;
+											await tick();
+										}}
+									/>
+								</div>
+							</button>
+						</Tooltip>
+					{/if}
+
+					{#if showPresentationButton}
+						<Tooltip content={$i18n.t('Generate a PowerPoint presentation')} placement="top-start">
+							<button
+								class="flex w-full justify-between gap-2 items-center px-3 py-1.5 text-sm cursor-pointer rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50"
+								aria-pressed={presentationEnabled}
+								on:click={() => {
+									presentationEnabled = !presentationEnabled;
+								}}
+							>
+								<div class="flex-1 truncate">
+									<div class="flex flex-1 gap-2 items-center">
+										<div class="shrink-0">
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="size-4"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke-width="1.5"
+												stroke="currentColor"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h12A2.25 2.25 0 0 0 20.25 14.25V3M3.75 3h16.5M3.75 21h16.5M12 3v18"
+												/>
+											</svg>
+										</div>
+
+										<div class=" truncate">{$i18n.t('Presentation')}</div>
+									</div>
+								</div>
+
+								<div class=" shrink-0">
+									<Switch
+										state={presentationEnabled}
+										on:change={async (e) => {
 											await tick();
 										}}
 									/>

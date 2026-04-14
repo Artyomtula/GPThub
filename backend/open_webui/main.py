@@ -2737,6 +2737,20 @@ async def _resolve_effective_model_selection(
             resolved_model_id = text_model_id
             resolution_reason = f'{resolution_reason}|text_override_for_followup'
 
+    # presentation capability: the PPTX is built by chat_presentation_handler which calls
+    # the LLM internally. The outer LLM call just generates the follow-up text response.
+    # Reroute to the best text model while keeping resolved_capability.
+    if resolved_capability == 'presentation':
+        text_model_id = _pick_preferred_model_for_capability(
+            capability_graph,
+            'text',
+            available_models,
+            prefer_deep_research=prefer_deep_research,
+        )
+        if text_model_id:
+            resolved_model_id = text_model_id
+            resolution_reason = f'{resolution_reason}|text_override_for_followup'
+
     if display_model_id is None and resolved_model_id:
         display_model_id = resolved_model_id
 
@@ -2821,6 +2835,12 @@ async def chat_completion(
             features = form_data.setdefault('features', {})
             features['research'] = True
             features['web_search'] = True
+
+        # When the router resolves to presentation intent, force presentation feature on.
+        if selection_effective.get('resolved_capability') == 'presentation':
+            features = form_data.setdefault('features', {})
+            if not features.get('presentation'):
+                features['presentation'] = True
 
     else:
         if selection_mode == 'manual':

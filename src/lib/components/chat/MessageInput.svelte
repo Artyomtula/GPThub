@@ -133,6 +133,7 @@
 	export let webSearchEnabled = false;
 	export let deepResearchEnabled = false;
 	export let codeInterpreterEnabled = false;
+	export let presentationEnabled = false;
 
 	export let pendingOAuthTools = [];
 
@@ -511,6 +512,8 @@
 			codeInterpreterCapableModels.length &&
 		$config?.features?.enable_code_interpreter &&
 		($_user.role === 'admin' || $_user?.permissions?.features?.code_interpreter);
+
+	let showPresentationButton = true;
 
 	// Disable code interpreter when terminal is active (mutually exclusive)
 	$: if ($selectedTerminalId && codeInterpreterEnabled) {
@@ -1626,7 +1629,7 @@
 										</div>
 									</InputMenu>
 
-									{#if showWebSearchButton || showDeepResearchButton || showImageGenerationButton || showCodeInterpreterButton || showToolsButton || (toggleFilters && toggleFilters.length > 0)}
+									{#if showWebSearchButton || showDeepResearchButton || showImageGenerationButton || showCodeInterpreterButton || showPresentationButton || showToolsButton || (toggleFilters && toggleFilters.length > 0)}
 										<div
 											class="flex self-center w-[1px] h-4 mx-1 bg-gray-200/50 dark:bg-gray-800/50"
 										/>
@@ -1638,12 +1641,14 @@
 											{showDeepResearchButton}
 											{showImageGenerationButton}
 											{showCodeInterpreterButton}
+											{showPresentationButton}
 											bind:selectedToolIds
 											bind:selectedFilterIds
 											bind:webSearchEnabled
 											bind:deepResearchEnabled
 											bind:imageGenerationEnabled
 											bind:codeInterpreterEnabled
+											bind:presentationEnabled
 											closeOnOutsideClick={integrationsMenuCloseOnOutsideClick}
 											onShowValves={(e) => {
 												const { type, id } = e;

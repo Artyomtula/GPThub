@@ -37,6 +37,7 @@ CAPABILITY_ORDER: tuple[str, ...] = (
     'audio_speech',
     'web_search',
     'research',
+    'presentation',
 )
 
 
@@ -212,6 +213,14 @@ def infer_request_capability(prompt: str) -> str:
         return 'image_generation'
     if re.search(r'(что на изображ|проанализир.*фото|vision|analy[sz]e image|caption image)', normalized):
         return 'vision'
+    if re.search(
+        r'(создай.*презентац|сделай.*презентац|напиши.*презентац|презентац.*тему|'
+        r'сгенерир.*презентац|слайды.*тем|сделай.*слайд|'
+        r'create.*presentation|make.*presentation|generate.*presentation|build.*presentation|'
+        r'create.*slides|make.*slides|write.*presentation|powerpoint|keynote|pptx)',
+        normalized,
+    ):
+        return 'presentation'
     if re.search(r'(код|code|bug|debug|refactor|typescript|javascript|python|sql|regex|api)', normalized):
         return 'code'
     if re.search(r'(audio|speech|voice|transcrib|распознай|расшифруй|аудио|транскриб|запись)', normalized):

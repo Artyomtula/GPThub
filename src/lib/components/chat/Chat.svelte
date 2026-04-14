@@ -148,10 +148,11 @@
 	let selectedFilterIds = [];
 	let pendingOAuthTools = [];
 
-	let imageGenerationEnabled = false;
+	let imageGenerationEnabled = true;
 	let webSearchEnabled = false;
 	let deepResearchEnabled = false;
 	let codeInterpreterEnabled = false;
+	let presentationEnabled = false;
 
 	let showCommands = false;
 
@@ -190,7 +191,8 @@
 		selectedFilterIds = [];
 		webSearchEnabled = false;
 		deepResearchEnabled = false;
-		imageGenerationEnabled = false;
+		imageGenerationEnabled = true;
+		presentationEnabled = false;
 
 		const storageChatInput = sessionStorage.getItem(
 			`chat-input${chatIdProp ? `-${chatIdProp}` : ''}`
@@ -283,8 +285,9 @@
 		pendingOAuthTools = [];
 		webSearchEnabled = false;
 		deepResearchEnabled = false;
-		imageGenerationEnabled = false;
+		imageGenerationEnabled = true;
 		codeInterpreterEnabled = false;
+		presentationEnabled = false;
 
 		if (selectedModelIds.filter((id) => id).length > 0) {
 			setDefaults();
@@ -740,9 +743,9 @@
 		loading = true;
 		console.log('mounted');
 
-			window.addEventListener('message', onMessageHandler);
-			window.addEventListener('gpthub:model-select', onModelSelectFromChat as EventListener);
-			$socket?.on('events', chatEventHandler);
+		window.addEventListener('message', onMessageHandler);
+		window.addEventListener('gpthub:model-select', onModelSelectFromChat as EventListener);
+		$socket?.on('events', chatEventHandler);
 
 		$audioQueue?.destroy();
 
@@ -829,8 +832,9 @@
 				selectedFilterIds = [];
 				webSearchEnabled = false;
 				deepResearchEnabled = false;
-				imageGenerationEnabled = false;
+				imageGenerationEnabled = true;
 				codeInterpreterEnabled = false;
+				presentationEnabled = false;
 
 				try {
 					const input = JSON.parse(storageChatInput);
@@ -856,11 +860,11 @@
 		return () => {
 			try {
 				pageSubscribe();
-					showControlsSubscribe();
-					selectedFolderSubscribe();
-					window.removeEventListener('message', onMessageHandler);
-					window.removeEventListener('gpthub:model-select', onModelSelectFromChat as EventListener);
-					$socket?.off('events', chatEventHandler);
+				showControlsSubscribe();
+				selectedFolderSubscribe();
+				window.removeEventListener('message', onMessageHandler);
+				window.removeEventListener('gpthub:model-select', onModelSelectFromChat as EventListener);
+				$socket?.off('events', chatEventHandler);
 				audioQueueInstance?.destroy();
 				audioQueue.set(null);
 			} catch (e) {
@@ -2172,7 +2176,8 @@
 					($user?.role === 'admin' || $user?.permissions?.features?.web_search)
 						? webSearchEnabled
 						: false,
-				deep_research: deepResearchEnabled
+				deep_research: deepResearchEnabled,
+				presentation: presentationEnabled
 			};
 
 		const currentModels = atSelectedModel?.id ? [atSelectedModel.id] : selectedModels;
@@ -3041,6 +3046,7 @@
 									bind:selectedFilterIds
 									bind:imageGenerationEnabled
 									bind:codeInterpreterEnabled
+									bind:presentationEnabled
 									{pendingOAuthTools}
 									bind:webSearchEnabled
 									bind:deepResearchEnabled
@@ -3127,6 +3133,7 @@
 									bind:selectedFilterIds
 									bind:imageGenerationEnabled
 									bind:codeInterpreterEnabled
+									bind:presentationEnabled
 									bind:webSearchEnabled
 									bind:deepResearchEnabled
 									bind:atSelectedModel
