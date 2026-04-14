@@ -697,7 +697,8 @@
 					if (value) {
 						controlPaneComponent?.openPane();
 					} else {
-						controlPane.collapse();
+						// Delay collapse so the Svelte fly-out animation (200ms) plays first
+						setTimeout(() => controlPane?.collapse(), 220);
 					}
 				} catch (e) {
 					// ignore

@@ -24,9 +24,21 @@
 	import InfoCircle from '$lib/components/icons/InfoCircle.svelte';
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 	import UserCircle from '$lib/components/icons/UserCircle.svelte';
+	import CodeBracket from '$lib/components/icons/CodeBracket.svelte';
+	import Photo from '$lib/components/icons/Photo.svelte';
+	import Eye from '$lib/components/icons/Eye.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
 	import ModelItem from './ModelItem.svelte';
+
+	const getCapabilityIcon = (model: any): string => {
+		const text = `${(model?.id || '').toLowerCase()} ${(model?.name || '').toLowerCase()}`;
+		const caps = model?.info?.meta?.capabilities || {};
+		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text)) return 'image';
+		if (caps.vision || /\b(vision|vl\b|multimodal)\b/.test(text)) return 'vision';
+		if (caps.code || /\b(coder|code|program)\b/.test(text)) return 'code';
+		return 'text';
+	};
 
 	const i18n = getContext('i18n');
 
@@ -61,7 +73,7 @@
 	$: selectedModel = items.find((item) => item.value === value) ?? '';
 	$: triggerLabel =
 		showAutoMode && mode === 'auto'
-			? $i18n.t('Auto Mode')
+			? 'Auto Mode'
 			: selectedModel
 				? selectedModel.label
 				: placeholder;
@@ -179,13 +191,13 @@
 			return;
 		}
 
-		const selectedInFiltered = filteredItems.findIndex((item) => item.value === value);
+		const selectedInFiltered = displayItems.findIndex((item) => item.value === value);
 
 		if (selectedInFiltered >= 0) {
 			// The selected model is visible in the current filter
 			selectedModelIdx = selectedInFiltered;
 		} else {
-			// The selected model is not visible, default to first item in filtered list
+			// The selected model is not visible, default to first item in display list
 			selectedModelIdx = 0;
 		}
 
@@ -401,6 +413,10 @@
 		(item) => !(typeof item.value === 'string' && item.value.startsWith('gpthub:'))
 	);
 
+	// Display order: agents (excluding gpthub:auto) then regular models.
+	// gpthub:auto is shown separately as the Auto Mode button and is NOT in this array.
+	$: displayItems = [...agentItems, ...regularItems];
+
 	$: visibleStart = Math.max(0, Math.floor(listScrollTop / ITEM_HEIGHT) - OVERSCAN);
 	$: visibleEnd = Math.min(
 		regularItems.length,
@@ -468,6 +484,16 @@
 							className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
 							strokeWidth="1.8"
 						/>
+					{:else if selectedModel}
+						{#if getCapabilityIcon(selectedModel.model) === 'image'}
+							<Photo className="size-4 shrink-0 text-gray-500 dark:text-gray-400" strokeWidth="1.8" />
+						{:else if getCapabilityIcon(selectedModel.model) === 'vision'}
+							<Eye className="size-4 shrink-0 text-gray-500 dark:text-gray-400" strokeWidth="1.8" />
+						{:else if getCapabilityIcon(selectedModel.model) === 'code'}
+							<CodeBracket className="size-4 shrink-0 text-gray-500 dark:text-gray-400" strokeWidth="1.8" />
+						{:else}
+							<Sparkles className="size-4 shrink-0 text-gray-500 dark:text-gray-400" strokeWidth="1.8" />
+						{/if}
 					{/if}
 					<span class="truncate">{triggerLabel}</span>
 				</span>
@@ -508,13 +534,13 @@
 										autocomplete="off"
 										aria-label={$i18n.t('Search In Models')}
 										on:keydown={(e) => {
-											if (e.code === 'Enter' && filteredItems.length > 0) {
-												value = filteredItems[selectedModelIdx].value;
+											if (e.code === 'Enter' && displayItems.length > 0) {
+												value = displayItems[selectedModelIdx].value;
 												show = false;
 												return;
 											} else if (e.code === 'ArrowDown') {
 												e.stopPropagation();
-												selectedModelIdx = Math.min(selectedModelIdx + 1, filteredItems.length - 1);
+												selectedModelIdx = Math.min(selectedModelIdx + 1, displayItems.length - 1);
 											} else if (e.code === 'ArrowUp') {
 												e.stopPropagation();
 												selectedModelIdx = Math.max(selectedModelIdx - 1, 0);
@@ -556,7 +582,7 @@
 													/>
 												</div>
 												<div class="flex items-center gap-1.5">
-													<div class="line-clamp-1">{$i18n.t('Auto Mode')}</div>
+													<div class="line-clamp-1">Auto Mode</div>
 													<Tooltip
 														content={$i18n.t(
 															'GPThub automatically chooses the best model for your request.'

@@ -27,9 +27,21 @@
 	import EyeSlash from '$lib/components/icons/EyeSlash.svelte';
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 	import UserCircle from '$lib/components/icons/UserCircle.svelte';
+	import CodeBracket from '$lib/components/icons/CodeBracket.svelte';
+	import Photo from '$lib/components/icons/Photo.svelte';
+	import Eye from '$lib/components/icons/Eye.svelte';
 	import MessageInput from './MessageInput.svelte';
 	import FolderPlaceholder from './Placeholder/FolderPlaceholder.svelte';
 	import FolderTitle from './Placeholder/FolderTitle.svelte';
+
+	const getCapabilityIcon = (model: any): string => {
+		const text = `${(model?.id || '').toLowerCase()} ${(model?.name || '').toLowerCase()}`;
+		const caps = model?.info?.meta?.capabilities || {};
+		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text)) return 'image';
+		if (caps.vision || /\b(vision|vl\b|multimodal)\b/.test(text)) return 'vision';
+		if (caps.code || /\b(coder|code|program)\b/.test(text)) return 'code';
+		return 'text';
+	};
 
 	const i18n = getContext('i18n');
 
@@ -146,15 +158,19 @@
 												/>
 											</div>
 										{:else}
-											<img
-												src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}`}
-												class=" size-9 @sm:size-10 rounded-full border-[1px] border-gray-100 dark:border-none"
-												aria-hidden="true"
-												draggable="false"
-												on:error={(e) => {
-													e.currentTarget.src = '/favicon.png';
-												}}
-											/>
+										<div
+											class="size-9 @sm:size-10 rounded-full bg-white dark:bg-gray-750 border-[1px] border-gray-100 dark:border-gray-700 flex items-center justify-center"
+										>
+											{#if getCapabilityIcon(model) === 'image'}
+												<Photo className="size-5 text-gray-500 dark:text-gray-400" strokeWidth="1.6" />
+											{:else if getCapabilityIcon(model) === 'vision'}
+												<Eye className="size-5 text-gray-500 dark:text-gray-400" strokeWidth="1.6" />
+											{:else if getCapabilityIcon(model) === 'code'}
+												<CodeBracket className="size-5 text-gray-500 dark:text-gray-400" strokeWidth="1.6" />
+											{:else}
+												<Sparkles className="size-5 text-gray-500 dark:text-gray-400" strokeWidth="1.6" />
+											{/if}
+										</div>
 										{/if}
 									</button>
 								</Tooltip>
@@ -167,7 +183,7 @@
 						in:fade={{ duration: 100 }}
 					>
 						{#if modelSelectionMode === 'auto'}
-							<span class="line-clamp-1">{$i18n.t('Auto Mode')}</span>
+							<span class="line-clamp-1">Auto Mode</span>
 						{:else if models[selectedModelIdx]?.name}
 							<Tooltip
 								content={models[selectedModelIdx]?.name}
@@ -197,22 +213,20 @@
 								className=" w-fit"
 								content={marked.parse(
 									sanitizeResponseContent(
-										models[selectedModelIdx]?.info?.meta?.description ?? ''
+									$i18n.t(models[selectedModelIdx]?.info?.meta?.description ?? '')
+								).replaceAll('\n', '<br>')
+							)}
+							placement="top"
+						>
+							<div
+								class="mt-0.5 px-2 text-sm font-normal text-gray-500 dark:text-gray-400 line-clamp-2 max-w-xl markdown"
+							>
+								{@html marked.parse(
+									sanitizeResponseContent(
+										$i18n.t(models[selectedModelIdx]?.info?.meta?.description ?? '')
 									).replaceAll('\n', '<br>')
 								)}
-								placement="top"
-							>
-								<div
-									class="mt-0.5 px-2 text-sm font-normal text-gray-500 dark:text-gray-400 line-clamp-2 max-w-xl markdown"
-								>
-									{@html marked.parse(
-										sanitizeResponseContent(
-											models[selectedModelIdx]?.info?.meta?.description ?? ''
-										).replaceAll('\n', '<br>')
-									)}
-								</div>
-							</Tooltip>
-
+							</div>
 							{#if models[selectedModelIdx]?.info?.meta?.user}
 								<div class="mt-0.5 text-sm font-normal text-gray-400 dark:text-gray-500">
 									By
@@ -229,6 +243,7 @@
 									{/if}
 								</div>
 							{/if}
+						</Tooltip>
 						{/if}
 					</div>
 				</div>
@@ -275,14 +290,16 @@
 	{:else}
 		<div class="mx-auto max-w-2xl font-primary mt-2" in:fade={{ duration: 200, delay: 200 }}>
 			<div class="mx-5">
-				<Suggestions
-					suggestionPrompts={atSelectedModel?.info?.meta?.suggestion_prompts ??
-						models[selectedModelIdx]?.info?.meta?.suggestion_prompts ??
-						$config?.default_prompt_suggestions ??
-						[]}
-					inputValue={prompt}
-					{onSelect}
-				/>
+				{#key $i18n.language}
+					<Suggestions
+						suggestionPrompts={atSelectedModel?.info?.meta?.suggestion_prompts ??
+							models[selectedModelIdx]?.info?.meta?.suggestion_prompts ??
+							$config?.default_prompt_suggestions ??
+							[]}
+						inputValue={prompt}
+						{onSelect}
+					/>
+				{/key}
 			</div>
 		</div>
 	{/if}

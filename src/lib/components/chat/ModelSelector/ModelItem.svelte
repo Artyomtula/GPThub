@@ -17,6 +17,10 @@
 	import Cloud from '$lib/components/icons/Cloud.svelte';
 	import Computer from '$lib/components/icons/Computer.svelte';
 	import UserCircle from '$lib/components/icons/UserCircle.svelte';
+	import CodeBracket from '$lib/components/icons/CodeBracket.svelte';
+	import Photo from '$lib/components/icons/Photo.svelte';
+	import Eye from '$lib/components/icons/Eye.svelte';
+	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -49,6 +53,15 @@
 
 	const isLocalModel = (model: any) =>
 		model?.owned_by === 'ollama' || model?.connection_type === 'local';
+
+	const getCapabilityIcon = (model: any): string => {
+		const text = `${(model?.id || '').toLowerCase()} ${(model?.name || '').toLowerCase()}`;
+		const caps = model?.info?.meta?.capabilities || {};
+		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text)) return 'image';
+		if (caps.vision || /\b(vision|vl\b|multimodal)\b/.test(text)) return 'vision';
+		if (caps.code || /\b(coder|code|program)\b/.test(text)) return 'code';
+		return 'text';
+	};
 </script>
 
 <button
@@ -92,15 +105,17 @@
 						content={$user?.role === 'admin' ? (item?.value ?? '') : ''}
 						placement="top-start"
 					>
-						<img
-							src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${item.model.id}&lang=${$i18n.language}`}
-							alt={$i18n.t('{{modelName}} profile image', { modelName: item.label })}
-							class="rounded-full size-5 flex items-center"
-							loading="lazy"
-							on:error={(e) => {
-								e.currentTarget.src = '/favicon.png';
-							}}
-						/>
+						<div class="size-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+							{#if getCapabilityIcon(item.model) === 'image'}
+								<Photo className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+							{:else if getCapabilityIcon(item.model) === 'vision'}
+								<Eye className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+							{:else if getCapabilityIcon(item.model) === 'code'}
+								<CodeBracket className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+							{:else}
+								<Sparkles className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+							{/if}
+						</div>
 					</Tooltip>
 				</div>
 			{:else}
@@ -112,11 +127,13 @@
 			{/if}
 
 			<div class="flex items-center">
-				<Tooltip content={`${item.label} (${item.value})`} placement="top-start">
-					<div class="line-clamp-1">
-						{item.label}
-					</div>
-				</Tooltip>
+				{#if isAgent}
+					<div class="line-clamp-1">{item.label}</div>
+				{:else}
+					<Tooltip content={$user?.role === 'admin' ? item.value : ''} placement="top-start">
+						<div class="line-clamp-1">{item.label}</div>
+					</Tooltip>
+				{/if}
 			</div>
 
 			<div class=" shrink-0 flex items-center gap-2">
@@ -187,7 +204,7 @@
 				{#if item.model?.info?.meta?.description}
 					<Tooltip
 						content={`${marked.parse(
-							sanitizeResponseContent(item.model?.info?.meta?.description).replaceAll('\n', '<br>')
+							sanitizeResponseContent($i18n.t(item.model?.info?.meta?.description)).replaceAll('\n', '<br>')
 						)}`}
 					>
 						<div class=" translate-y-[1px]">
