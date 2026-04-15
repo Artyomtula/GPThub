@@ -51,14 +51,14 @@
 			</button>
 		</div>
 
-		<div class="px-5 pb-4">
+		<div class="px-5 pb-5">
 			<form
 				on:submit={(e) => {
 					e.preventDefault();
 					submitHandler();
 				}}
 			>
-				<div class="flex justify-between mb-0.5">
+				<div class="flex justify-between mb-1.5">
 					<label
 						for="webpage-url"
 						class={`text-xs ${($settings?.highContrastMode ?? false) ? 'text-gray-800 dark:text-gray-100' : 'text-gray-500'}`}
@@ -68,18 +68,18 @@
 
 				<textarea
 					id="webpage-url"
-					class={`w-full flex-1 text-sm bg-transparent ${($settings?.highContrastMode ?? false) ? 'placeholder:text-gray-700 dark:placeholder:text-gray-100' : 'outline-hidden placeholder:text-gray-300 dark:placeholder:text-gray-700'}`}
+					class={`w-full flex-1 text-sm bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-gray-600 ${($settings?.highContrastMode ?? false) ? 'placeholder:text-gray-700 dark:placeholder:text-gray-100' : 'placeholder:text-gray-400 dark:placeholder:text-gray-500'}`}
 					type="text"
 					bind:value={url}
-					rows="3"
+					rows="4"
 					placeholder={'https://example.com'}
 					autocomplete="off"
 					required
-				/>
+				></textarea>
 
-				<div class="flex justify-end gap-2 pt-3 bg-gray-50 dark:bg-gray-900/50">
+				<div class="flex justify-end gap-2 mt-4">
 					<button
-						class="px-3.5 py-1.5 text-sm font-medium bg-black hover:bg-gray-800 text-white dark:bg-white dark:text-black dark:hover:bg-gray-200 transition rounded-full"
+						class="px-4 py-2 text-sm font-medium bg-black hover:bg-gray-800 text-white dark:bg-white dark:text-black dark:hover:bg-gray-200 transition rounded-full"
 						type="submit"
 					>
 						{$i18n.t('Add')}

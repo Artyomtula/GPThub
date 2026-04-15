@@ -358,7 +358,15 @@
 		ollamaVersion = await getOllamaVersion(localStorage.token).catch((error) => false);
 	};
 
+	let isTablet = false;
+
 	onMount(async () => {
+		const tabletMQ = window.matchMedia('(min-width: 768px) and (max-width: 1023px)');
+		isTablet = tabletMQ.matches;
+		tabletMQ.addEventListener('change', (e) => {
+			isTablet = e.matches;
+		});
+
 		if (items) {
 			tags = items
 				.filter((item) => !(item.model?.info?.meta?.hidden ?? false))
@@ -369,7 +377,7 @@
 		}
 	});
 
-	$: if (show) {
+	$: if (show && ollamaVersion === null) {
 		setOllamaVersion();
 	}
 
@@ -432,6 +440,7 @@
 		regularItems.length,
 		Math.ceil((listScrollTop + 256) / ITEM_HEIGHT) + OVERSCAN
 	);
+
 </script>
 
 <DropdownMenu.Root
@@ -552,7 +561,7 @@
 			trapFocus={false}
 			preventScroll={false}
 			side="bottom"
-			align={$mobile ? 'center' : 'start'}
+			align={$mobile || isTablet ? 'center' : 'start'}
 			sideOffset={2}
 			alignOffset={-1}
 		>
@@ -561,9 +570,7 @@
 					<div {...wrapperProps}>
 						<div
 							{...props}
-							class="{props.class} z-40 {$mobile
-								? `w-full`
-								: `${className}`} max-w-[calc(100vw-1rem)] justify-start rounded-2xl bg-white/85 dark:bg-gray-850/85 backdrop-blur-xl dark:text-white shadow-lg outline-hidden border border-gray-200/60 dark:border-gray-800/60"
+							class="{props.class} z-40 {$mobile ? `w-full` : isTablet ? `w-[min(32rem,calc(100vw-2rem))]` : `${className}`} max-w-[calc(100vw-1rem)] justify-start rounded-2xl bg-white/85 dark:bg-gray-850/85 backdrop-blur-xl dark:text-white shadow-lg outline-hidden border border-gray-200/60 dark:border-gray-800/60"
 							transition:flyAndScale
 						>
 							<slot>

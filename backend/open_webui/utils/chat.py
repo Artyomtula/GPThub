@@ -252,6 +252,10 @@ async def generate_chat_completion(
                     bypass_filter=True,
                     bypass_system_prompt=bypass_system_prompt,
                 )
+                if not isinstance(response, StreamingResponse):
+                    # Model returned a non-streaming response (e.g. image-gen models
+                    # can return a JSONResponse). Pass it through as-is.
+                    return response
                 return StreamingResponse(
                     stream_wrapper(response.body_iterator),
                     media_type='text/event-stream',

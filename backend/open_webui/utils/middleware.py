@@ -56,6 +56,7 @@ from open_webui.routers.pipelines import (
     process_pipeline_outlet_filter,
 )
 from open_webui.routers.memories import query_memory, QueryMemoryForm
+from open_webui.models.memories import Memories
 
 from open_webui.utils.webhook import post_webhook
 from open_webui.utils.files import (
@@ -1390,21 +1391,6 @@ async def chat_completion_tools_handler(
 
 
 async def chat_memory_handler(request: Request, form_data: dict, extra_params: dict, user):
-    try:
-        results = await query_memory(
-            request,
-            QueryMemoryForm(
-                **{
-                    'content': get_last_user_message(form_data['messages']) or '',
-                    'k': 3,
-                }
-            ),
-            user,
-        )
-    except Exception as e:
-        log.debug(e)
-        results = None
-
     def parse_structured_memory_text(doc_text: str) -> Optional[dict]:
         try:
             payload = json.loads(doc_text)
@@ -1414,39 +1400,92 @@ async def chat_memory_handler(request: Request, form_data: dict, extra_params: d
             return None
         return None
 
-    user_context = ''
     now_ts = int(time.time())
-    if results and hasattr(results, 'documents'):
-        if results.documents and len(results.documents) > 0:
-            for doc_idx, doc in enumerate(results.documents[0]):
-                structured = parse_structured_memory_text(doc)
-                if structured:
-                    if structured.get('status') == 'inactive':
-                        continue
-                    expires_at = structured.get('expires_at')
-                    if isinstance(expires_at, int) and expires_at > 0 and now_ts > expires_at:
-                        continue
+    user_context = ''
 
-                created_at_date = 'Unknown Date'
+    # For small memory sets, inject all memories directly without semantic filtering.
+    # This prevents relevant personal facts from being silently dropped when the
+    # current query topic doesn't happen to match them semantically.
+    SMALL_MEMORY_THRESHOLD = 15
+    all_memories = Memories.get_memories_by_user_id(user.id) or []
 
-                if results.metadatas[0][doc_idx].get('created_at'):
-                    created_at_timestamp = results.metadatas[0][doc_idx]['created_at']
-                    created_at_date = time.strftime('%Y-%m-%d', time.localtime(created_at_timestamp))
+    if len(all_memories) <= SMALL_MEMORY_THRESHOLD:
+        for idx, mem in enumerate(all_memories):
+            structured = parse_structured_memory_text(mem.content)
+            if structured:
+                if structured.get('status') == 'inactive':
+                    continue
+                expires_at = structured.get('expires_at')
+                if isinstance(expires_at, int) and expires_at > 0 and now_ts > expires_at:
+                    continue
+                mem_type = str(structured.get('type') or 'fact')
+                mem_value = str(structured.get('value') or '').strip()
+                if not mem_value:
+                    continue
+                confidence = structured.get('confidence')
+                confidence_text = ''
+                try:
+                    confidence_text = f' ({round(float(confidence), 2)})'
+                except Exception:
+                    pass
+                created_at_date = (
+                    time.strftime('%Y-%m-%d', time.localtime(mem.created_at))
+                    if mem.created_at
+                    else 'Unknown Date'
+                )
+                user_context += f'{idx + 1}. [{created_at_date}] [{mem_type}{confidence_text}] {mem_value}\n'
+            else:
+                created_at_date = (
+                    time.strftime('%Y-%m-%d', time.localtime(mem.created_at))
+                    if mem.created_at
+                    else 'Unknown Date'
+                )
+                user_context += f'{idx + 1}. [{created_at_date}] {mem.content}\n'
+    else:
+        # Large memory store: use semantic search to retrieve the most relevant ones.
+        try:
+            results = await query_memory(
+                request,
+                QueryMemoryForm(
+                    content=get_last_user_message(form_data['messages']) or '',
+                    k=8,
+                ),
+                user,
+            )
+        except Exception as e:
+            log.debug(e)
+            results = None
 
-                if structured:
-                    mem_type = str(structured.get('type') or 'fact')
-                    mem_value = str(structured.get('value') or '').strip()
-                    if not mem_value:
-                        continue
-                    confidence = structured.get('confidence')
-                    confidence_text = ''
-                    try:
-                        confidence_text = f" ({round(float(confidence), 2)})"
-                    except Exception:
+        if results and hasattr(results, 'documents'):
+            if results.documents and len(results.documents) > 0:
+                for doc_idx, doc in enumerate(results.documents[0]):
+                    structured = parse_structured_memory_text(doc)
+                    if structured:
+                        if structured.get('status') == 'inactive':
+                            continue
+                        expires_at = structured.get('expires_at')
+                        if isinstance(expires_at, int) and expires_at > 0 and now_ts > expires_at:
+                            continue
+
+                    created_at_date = 'Unknown Date'
+                    if results.metadatas[0][doc_idx].get('created_at'):
+                        created_at_timestamp = results.metadatas[0][doc_idx]['created_at']
+                        created_at_date = time.strftime('%Y-%m-%d', time.localtime(created_at_timestamp))
+
+                    if structured:
+                        mem_type = str(structured.get('type') or 'fact')
+                        mem_value = str(structured.get('value') or '').strip()
+                        if not mem_value:
+                            continue
+                        confidence = structured.get('confidence')
                         confidence_text = ''
-                    user_context += f'{doc_idx + 1}. [{created_at_date}] [{mem_type}{confidence_text}] {mem_value}\n'
-                else:
-                    user_context += f'{doc_idx + 1}. [{created_at_date}] {doc}\n'
+                        try:
+                            confidence_text = f' ({round(float(confidence), 2)})'
+                        except Exception:
+                            pass
+                        user_context += f'{doc_idx + 1}. [{created_at_date}] [{mem_type}{confidence_text}] {mem_value}\n'
+                    else:
+                        user_context += f'{doc_idx + 1}. [{created_at_date}] {doc}\n'
 
     if user_context.strip():
         form_data['messages'] = add_or_update_system_message(

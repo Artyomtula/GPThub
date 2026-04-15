@@ -148,7 +148,7 @@
 	let selectedFilterIds = [];
 	let pendingOAuthTools = [];
 
-	let imageGenerationEnabled = true;
+	let imageGenerationEnabled = false;
 	let webSearchEnabled = false;
 	let deepResearchEnabled = false;
 	let codeInterpreterEnabled = false;
@@ -191,7 +191,7 @@
 		selectedFilterIds = [];
 		webSearchEnabled = false;
 		deepResearchEnabled = false;
-		imageGenerationEnabled = true;
+		imageGenerationEnabled = false;
 		presentationEnabled = false;
 
 		const storageChatInput = sessionStorage.getItem(
@@ -293,7 +293,7 @@
 
 		webSearchEnabled = false;
 		deepResearchEnabled = false;
-		imageGenerationEnabled = true;
+		imageGenerationEnabled = false;
 		codeInterpreterEnabled = false;
 		presentationEnabled = false;
 
@@ -845,7 +845,7 @@
 				selectedFilterIds = [];
 				webSearchEnabled = false;
 				deepResearchEnabled = false;
-				imageGenerationEnabled = true;
+				imageGenerationEnabled = false;
 				codeInterpreterEnabled = false;
 				presentationEnabled = false;
 

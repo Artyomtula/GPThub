@@ -454,11 +454,13 @@
 			showSidebar.subscribe(async (value) => {
 				localStorage.sidebar = value;
 
-				if (!$mobile) {
-					document.documentElement.style.setProperty(
-						'--sidebar-width',
-						value ? `${$sidebarWidth}px` : '0px'
-					);
+				if (value) {
+					// Always restore the correct sidebar width when opening —
+					// on desktop the var may have been set to '0px' when closed,
+					// which would make the mobile overlay invisible.
+					document.documentElement.style.setProperty('--sidebar-width', `${$sidebarWidth}px`);
+				} else if (!$mobile) {
+					document.documentElement.style.setProperty('--sidebar-width', '0px');
 				}
 
 				// nav element is not available on the first render

@@ -5,6 +5,7 @@
 	import StatusItem from './StatusHistory/StatusItem.svelte';
 	export let statusHistory = [];
 	export let expand = false;
+	export let messageDone = false;
 
 	let showHistory = true;
 
@@ -41,7 +42,7 @@
 				}}
 			>
 				<div class="flex items-start gap-2">
-					<StatusItem {status} />
+					<StatusItem {status} done={messageDone} />
 				</div>
 			</button>
 

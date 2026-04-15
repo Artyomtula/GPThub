@@ -207,7 +207,7 @@ def build_capability_graph(
 def infer_request_capability(prompt: str) -> str:
     normalized = (prompt or '').lower()
 
-    if re.search(r'(нарис|изображ|картин|image|illustrat|draw|render|logo|poster)', normalized):
+    if re.search(r'(нарис|сгенерируй\s+изображ|создай\s+изображ|сделай\s+изображ|image|illustrat|draw|render|logo|poster)', normalized):
         return 'image_generation'
     if re.search(r'(что на изображ|проанализир.*фото|vision|analy[sz]e image|caption image)', normalized):
         return 'vision'

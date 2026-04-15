@@ -386,7 +386,40 @@
 						clearInterval(getVoicesLoop);
 
 						const voiceId = getVoiceId();
-						const voice = voices?.filter((v) => v.voiceURI === voiceId)?.at(0) ?? undefined;
+						let voice = voices?.filter((v) => v.voiceURI === voiceId)?.at(0) ?? undefined;
+
+						// No exact match — detect the language from the content itself so that
+						// a Russian response always gets a Russian voice regardless of the UI
+						// locale, and an English response always gets an English voice.
+						// Prefer local/offline voices: network voices (e.g. "Google US English")
+						// are prone to stutter, clipping, and silent failures on slow connections.
+						if (!voice) {
+							const contentLang = /[\u0400-\u04FF]/.test(content)
+								? 'ru'
+								: /[\u0600-\u06FF]/.test(content)
+									? 'ar'
+									: /[\u4E00-\u9FA5]/.test(content)
+										? 'zh'
+										: /[\u3040-\u30FF]/.test(content)
+											? 'ja'
+											: (
+													localStorage.getItem('locale') ||
+													navigator.language ||
+													'en-US'
+												)
+													.split('-')[0]
+													.toLowerCase();
+
+							const matchingVoices = voices.filter((v) =>
+								v.lang.toLowerCase().startsWith(contentLang)
+							);
+
+							voice =
+								matchingVoices.find((v) => v.localService) ??
+								matchingVoices[0] ??
+								voices.find((v) => v.localService) ??
+								voices[0];
+						}
 
 						currentUtterance = new SpeechSynthesisUtterance(content);
 						currentUtterance.rate = $settings.audio?.tts?.playbackRate ?? 1;
@@ -396,8 +429,15 @@
 							currentUtterance.lang = voice.lang;
 						}
 
+						// Chrome bug: speechSynthesis silently pauses after ~15 s.
+						// Poll and resume to keep long responses playing without cuts.
+						const resumeTimer = setInterval(() => {
+							if (speechSynthesis.paused) speechSynthesis.resume();
+						}, 5000);
+
 						speechSynthesis.speak(currentUtterance);
 						currentUtterance.onend = async (e) => {
+							clearInterval(resumeTimer);
 							await new Promise((r) => setTimeout(r, 200));
 							resolve(e);
 						};
@@ -416,14 +456,11 @@
 
 				if (audioElement) {
 					audioElement.src = audio.src;
-					audioElement.muted = true;
+					audioElement.muted = false;
 					audioElement.playbackRate = $settings.audio?.tts?.playbackRate ?? 1;
 
 					audioElement
 						.play()
-						.then(() => {
-							audioElement.muted = false;
-						})
 						.catch((error) => {
 							console.error(error);
 						});

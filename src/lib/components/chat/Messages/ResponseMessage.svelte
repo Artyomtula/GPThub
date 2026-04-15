@@ -669,7 +669,7 @@
 				<div class="chat-{message.role} w-full min-w-full markdown-prose">
 					<div>
 						{#if model?.info?.meta?.capabilities?.status_updates ?? true}
-							<StatusHistory statusHistory={message?.statusHistory} />
+							<StatusHistory statusHistory={message?.statusHistory} messageDone={message?.done ?? false} />
 						{/if}
 
 						{#if message?.files && message.files.length > 0}
