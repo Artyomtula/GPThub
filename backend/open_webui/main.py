@@ -2698,6 +2698,8 @@ async def _resolve_effective_model_selection(
                             'to create, generate, draw, or render an image/picture. '
                             'Do NOT select an image_generation model for text, writing, analysis, or '
                             'any request that merely mentions images or paintings as a topic. '
+                            'When the request contains [user_attached_images=N], the user has attached '
+                            'images for analysis — select a vision-capable model, NOT an image_generation model. '
                             'You MUST return ONLY a JSON object with two fields: '
                             '"model_id" (exact id string from the list) and "reason" (one sentence). '
                             'Example: {"model_id": "gpt-4o", "reason": "Best for text tasks."}'

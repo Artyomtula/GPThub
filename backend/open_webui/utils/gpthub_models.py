@@ -207,9 +207,21 @@ def build_capability_graph(
 def infer_request_capability(prompt: str) -> str:
     normalized = (prompt or '').lower()
 
+    # Detect and strip image-attachment markers injected by _extract_last_user_prompt
+    # to avoid false positives (the tag contains the word "image").
+    has_attached_images = bool(re.search(r'\[user_attached_images=\d+\]', normalized))
+    normalized = re.sub(r'\s*\[user_attached_images=\d+\]', '', normalized)
+
+    # When the user attached images, default to vision (image analysis) unless
+    # they explicitly ask to generate/draw a NEW image.
+    if has_attached_images:
+        if re.search(r'(нарис|сгенерируй\s+изображ|создай\s+изображ|сделай\s+изображ)', normalized):
+            return 'image_generation'
+        return 'vision'
+
     if re.search(r'(нарис|сгенерируй\s+изображ|создай\s+изображ|сделай\s+изображ|image|illustrat|draw|render|logo|poster)', normalized):
         return 'image_generation'
-    if re.search(r'(что на изображ|проанализир.*фото|vision|analy[sz]e image|caption image)', normalized):
+    if re.search(r'(что на изображ|что изображ|опиши.*фото|расскажи.*фото|проанализир.*фото|vision|analy[sz]e image|caption image|describe.*image|what.*photo)', normalized):
         return 'vision'
     if re.search(
         r'(создай.*презентац|сделай.*презентац|напиши.*презентац|презентац.*тему|'
