@@ -700,7 +700,9 @@
 </script>
 
 {#if $showCallOverlay}
-	<div class="relative max-w-lg w-full h-full max-h-[100dvh] flex flex-col items-center justify-between p-6 overflow-hidden">
+	<div
+		class="relative max-w-lg w-full h-full max-h-[100dvh] flex flex-col items-center justify-between p-6 overflow-hidden"
+	>
 		<!-- GPThub gradient background -->
 		<div class="gpthub-gradient-bg absolute inset-0 pointer-events-none" aria-hidden="true">
 			<span></span><i></i>
@@ -773,14 +775,32 @@
 						<!-- Pulse ring -->
 						<div
 							class="absolute rounded-full bg-white/10 transition-all duration-200"
-							style="width: {rmsLevel * 100 > 4 ? 11 : rmsLevel * 100 > 2 ? 10 : rmsLevel * 100 > 1 ? 9 : 8}rem;
+							style="width: {rmsLevel * 100 > 4
+								? 11
+								: rmsLevel * 100 > 2
+									? 10
+									: rmsLevel * 100 > 1
+										? 9
+										: 8}rem;
 							       height: {rmsLevel * 100 > 4 ? 11 : rmsLevel * 100 > 2 ? 10 : rmsLevel * 100 > 1 ? 9 : 8}rem;"
 						></div>
 						<!-- Mic icon container -->
 						<div
 							class="relative flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm transition-all duration-200"
-							style="width: {rmsLevel * 100 > 4 ? 8 : rmsLevel * 100 > 2 ? 7.5 : rmsLevel * 100 > 1 ? 7 : 6.5}rem;
-							       height: {rmsLevel * 100 > 4 ? 8 : rmsLevel * 100 > 2 ? 7.5 : rmsLevel * 100 > 1 ? 7 : 6.5}rem;"
+							style="width: {rmsLevel * 100 > 4
+								? 8
+								: rmsLevel * 100 > 2
+									? 7.5
+									: rmsLevel * 100 > 1
+										? 7
+										: 6.5}rem;
+							       height: {rmsLevel * 100 > 4
+								? 8
+								: rmsLevel * 100 > 2
+									? 7.5
+									: rmsLevel * 100 > 1
+										? 7
+										: 6.5}rem;"
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
