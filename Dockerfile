@@ -26,9 +26,10 @@ ARG GID=0
 ######## WebUI frontend ########
 FROM --platform=$BUILDPLATFORM node:22-alpine3.20 AS build
 ARG BUILD_HASH
+ARG NODE_BUILD_MAX_OLD_SPACE_SIZE=4096
 
-# Set Node.js options (heap limit Allocation failed - JavaScript heap out of memory)
-# ENV NODE_OPTIONS="--max-old-space-size=4096"
+# Avoid Vite/rollup OOM during production build in Docker.
+ENV NODE_OPTIONS=--max-old-space-size=${NODE_BUILD_MAX_OLD_SPACE_SIZE}
 
 WORKDIR /app
 
