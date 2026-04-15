@@ -1,9 +1,8 @@
 <script lang="ts">
-	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import Plus from '$lib/components/icons/Plus.svelte';
-	import { WEBUI_BASE_URL } from '$lib/constants';
+import Tooltip from '$lib/components/common/Tooltip.svelte';
+import Plus from '$lib/components/icons/Plus.svelte';
 
-	let selected = '';
+let selected = '';
 </script>
 
 <nav
@@ -30,13 +29,13 @@
 				}}
 			>
 				<img
-					src="{WEBUI_BASE_URL}/static/favicon.png"
+					src="/gpthub-logo.png"
 					class="size-11 p-0.5 dark:hidden"
 					alt="logo"
 					draggable="false"
 				/>
 				<img
-					src="{WEBUI_BASE_URL}/static/favicon-dark.png"
+					src="/gpthub-logo-dark.png"
 					class="size-11 p-0.5 hidden dark:block"
 					alt="logo"
 					draggable="false"
@@ -61,13 +60,13 @@
 			}}
 		>
 			<img
-				src="{WEBUI_BASE_URL}/static/favicon.png"
+				src="/gpthub-logo.png"
 				class="size-10 {selected === '' ? 'rounded-2xl' : 'rounded-full'} dark:hidden"
 				alt="logo"
 				draggable="false"
 			/>
 			<img
-				src="{WEBUI_BASE_URL}/static/favicon-dark.png"
+				src="/gpthub-logo-dark.png"
 				class="size-10 {selected === '' ? 'rounded-2xl' : 'rounded-full'} hidden dark:block"
 				alt="logo"
 				draggable="false"

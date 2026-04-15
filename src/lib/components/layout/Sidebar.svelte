@@ -726,12 +726,12 @@
 					>
 						<div class=" self-center flex items-center justify-center size-9">
 							<img
-								src="{WEBUI_BASE_URL}/static/favicon.png"
+								src="/gpthub-logo.png"
 								class="sidebar-new-chat-icon size-6 rounded-full group-hover:hidden dark:hidden"
 								alt=""
 							/>
 							<img
-								src="{WEBUI_BASE_URL}/static/favicon-dark.png"
+								src="/gpthub-logo-dark.png"
 								class="sidebar-new-chat-icon size-6 rounded-full group-hover:hidden hidden dark:block"
 								alt=""
 							/>
@@ -927,13 +927,13 @@
 				>
 					<img
 						crossorigin="anonymous"
-						src="{WEBUI_BASE_URL}/static/favicon.png"
+						src="/gpthub-logo.png"
 						class="sidebar-new-chat-icon size-6 rounded-full dark:hidden"
 						alt=""
 					/>
 					<img
 						crossorigin="anonymous"
-						src="{WEBUI_BASE_URL}/static/favicon-dark.png"
+						src="/gpthub-logo-dark.png"
 						class="sidebar-new-chat-icon size-6 rounded-full hidden dark:block"
 						alt=""
 					/>

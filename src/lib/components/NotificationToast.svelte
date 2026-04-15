@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { WEBUI_BASE_URL } from '$lib/constants';
-	import { settings, playingNotificationSound, isLastActiveTab } from '$lib/stores';
+import { settings, playingNotificationSound, isLastActiveTab } from '$lib/stores';
 	import DOMPurify from 'dompurify';
 	import { marked } from 'marked';
 
@@ -110,12 +109,12 @@
 
 	<div class="shrink-0 self-top -translate-y-0.5">
 		<img
-			src="{WEBUI_BASE_URL}/static/favicon.png"
+			src="/gpthub-logo.png"
 			alt="logo"
 			class="size-6 rounded-full dark:hidden"
 		/>
 		<img
-			src="{WEBUI_BASE_URL}/static/favicon-dark.png"
+			src="/gpthub-logo-dark.png"
 			alt="logo"
 			class="size-6 rounded-full hidden dark:block"
 		/>
