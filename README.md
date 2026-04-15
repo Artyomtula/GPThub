@@ -13,12 +13,6 @@ git clone https://git.truetecharena.ru/tta/true-tech-hack2026-gpthub/team-3d89e9
 sh start.sh
 ```
 
-### Windows (PowerShell)
-
-```powershell
-git clone https://git.truetecharena.ru/tta/true-tech-hack2026-gpthub/team-3d89e9b6/task-repo.git; cd open-webui; .\start.ps1
-```
-
 ### Windows (CMD)
 
 ```bat

@@ -2,8 +2,6 @@
 	import { getContext, onMount } from 'svelte';
 	const i18n = getContext('i18n');
 
-	import { WEBUI_BASE_URL } from '$lib/constants';
-
 	import Marquee from './common/Marquee.svelte';
 	import SlideShow from './common/SlideShow.svelte';
 	import ArrowRightCircle from './icons/ArrowRightCircle.svelte';
@@ -19,10 +17,10 @@
 
 			if (isDarkMode) {
 				const darkImage = new Image();
-				darkImage.src = `${WEBUI_BASE_URL}/static/favicon-dark.png`;
+				darkImage.src = '/gpthub-logo-dark.png';
 
 				darkImage.onload = () => {
-					logo.src = `${WEBUI_BASE_URL}/static/favicon-dark.png`;
+					logo.src = '/gpthub-logo-dark.png';
 					logo.style.filter = ''; // Ensure no inversion is applied if splash-dark.png exists
 				};
 
@@ -45,13 +43,13 @@
 				<div class=" self-center">
 					<img
 						crossorigin="anonymous"
-						src="{WEBUI_BASE_URL}/static/favicon.png"
+						src="/gpthub-logo.png"
 						class=" w-6 rounded-full dark:hidden"
 						alt="logo"
 					/>
 					<img
 						crossorigin="anonymous"
-						src="{WEBUI_BASE_URL}/static/favicon-dark.png"
+						src="/gpthub-logo-dark.png"
 						class=" w-6 rounded-full hidden dark:block"
 						alt="logo"
 					/>

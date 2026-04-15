@@ -223,13 +223,13 @@
 								<div class="flex justify-center mb-6">
 									<img
 										crossorigin="anonymous"
-										src="{WEBUI_BASE_URL}/static/favicon.png"
+										src="/gpthub-logo.png"
 										class="size-24 rounded-full dark:hidden"
 										alt="{$WEBUI_NAME} logo"
 									/>
 									<img
 										crossorigin="anonymous"
-										src="{WEBUI_BASE_URL}/static/favicon-dark.png"
+										src="/gpthub-logo-dark.png"
 										class="size-24 rounded-full hidden dark:block"
 										alt="{$WEBUI_NAME} logo"
 									/>
@@ -580,13 +580,13 @@
 					<div class=" self-center">
 						<img
 							crossorigin="anonymous"
-							src="{WEBUI_BASE_URL}/static/favicon.png"
+							src="/gpthub-logo.png"
 							class=" w-6 rounded-full dark:hidden"
 							alt=""
 						/>
 						<img
 							crossorigin="anonymous"
-							src="{WEBUI_BASE_URL}/static/favicon-dark.png"
+							src="/gpthub-logo-dark.png"
 							class=" w-6 rounded-full hidden dark:block"
 							alt=""
 						/>
