@@ -2348,23 +2348,21 @@ def _build_pptx(slides_data: dict, theme: str = 'corporate', slide_images: dict[
                 )
                 # Add semi-transparent overlay for readability
                 from pptx.oxml.ns import qn
+                from lxml import etree
                 overlay = slide.shapes.add_shape(
                     1,  # MSO_SHAPE.RECTANGLE
                     Inches(0), Inches(0), Inches(_SLIDE_W), Inches(_SLIDE_H),
                 )
                 overlay.fill.solid()
                 overlay.fill.fore_color.rgb = RGBColor(*bg_color)
-                # Set transparency via XML (50% transparent)
-                fill_elem = overlay.fill._fill
-                solid = fill_elem.find(qn('a:solidFill'))
+                # Set 50% transparency via raw XML on the spPr element
+                sp_pr = overlay._element.spPr
+                solid = sp_pr.find(qn('a:solidFill'))
                 if solid is not None:
                     srgb = solid.find(qn('a:srgbClr'))
-                    if srgb is None:
-                        srgb = solid[0] if len(solid) else None
                     if srgb is not None:
-                        from lxml import etree
                         alpha = etree.SubElement(srgb, qn('a:alpha'))
-                        alpha.set('val', '50000')  # 50% opacity
+                        alpha.set('val', '50000')
                 overlay.line.fill.background()
             else:
                 slide.shapes.add_picture(
@@ -2565,7 +2563,6 @@ async def _generate_slide_images(
 async def chat_presentation_handler(request: Request, form_data: dict, extra_params: dict, user):
     import io
     import uuid as _uuid
-    import base64 as _base64
 
     from open_webui.models.files import Files, FileForm
     from open_webui.storage.provider import Storage
@@ -2614,12 +2611,12 @@ async def chat_presentation_handler(request: Request, form_data: dict, extra_par
         '- hero: full-bleed background image with large centered title overlay. Use for title/intro slides and dramatic impact.\n'
         '- top-strip: full-width image strip on top (~40%), title and bullets below. Good for section headers.\n\n'
         'Rules:\n'
-        '- Include 6-10 slides\n'
-        '- First slide should use "hero" layout as a title slide\n'
-        '- Last slide should be a conclusions/summary slide\n'
-        '- Vary layouts across slides for visual interest\n'
+        '- Include exactly 4 slides\n'
+        '- Slide 1: use "hero" layout as a title slide\n'
+        '- Slide 2-3: main content slides, vary layouts (split-right, split-left, top-strip)\n'
+        '- Slide 4: conclusions/summary slide\n'
         '- Each image_prompt must be a vivid, specific description suitable for AI image generation\n'
-        '- body array should have 2-5 short bullet points per slide\n'
+        '- body array should have 2-4 short bullet points per slide\n'
         '- Return JSON only, no extra text or markdown'
     )
 
@@ -2649,6 +2646,11 @@ async def chat_presentation_handler(request: Request, form_data: dict, extra_par
 
         slides_data = json.loads(raw[bracket_start:bracket_end])
         slides = slides_data.get('slides', [])
+
+        # Hard cap at 4 slides
+        if len(slides) > 4:
+            slides = slides[:4]
+            slides_data['slides'] = slides
 
         # Normalise layouts
         for sd in slides:
@@ -2714,22 +2716,12 @@ async def chat_presentation_handler(request: Request, form_data: dict, extra_par
             ),
         )
 
-        file_url = f'/api/v1/files/{file_id}/content/{filename}'
+        file_url = file_id
         slide_count = len(slides)
-
-        # Emit HTML slide preview
-        preview_html = _build_slide_preview_html(slides_data, theme=theme, slide_image_urls=slide_image_urls)
-        preview_data_uri = (
-            'data:text/html;base64,'
-            + _base64.b64encode(preview_html.encode('utf-8')).decode('ascii')
-        )
-        await __event_emitter__(
-            {'type': 'embeds', 'data': {'embeds': [preview_data_uri]}}
-        )
 
         img_count = len(slide_images)
         await __event_emitter__(
-            {'type': 'status', 'data': {'description': 'Presentation created!', 'done': True}}
+            {'type': 'status', 'data': {'description': 'Презентация создана!', 'done': True}}
         )
         await __event_emitter__(
             {
@@ -2738,6 +2730,7 @@ async def chat_presentation_handler(request: Request, form_data: dict, extra_par
                     'files': [
                         {
                             'type': 'file',
+                            'id': file_id,
                             'name': filename,
                             'url': file_url,
                             'size': len(file_bytes),
@@ -2748,27 +2741,40 @@ async def chat_presentation_handler(request: Request, form_data: dict, extra_par
             }
         )
 
-        img_note = f' with {img_count} generated images' if img_count else ''
+        # Build a short slide outline for the LLM to describe
+        slide_outline = '; '.join(
+            f'Слайд {i+1}: {s.get("title", "")}'
+            for i, s in enumerate(slides)
+        )
+        img_note = f' с {img_count} сгенерированными изображениями' if img_count else ''
         system_message_content = (
-            f'<context>A PowerPoint presentation "{pres_title}" with {slide_count} slides{img_note} '
-            'has been created and is now shown to the user as a downloadable file attachment. '
-            'Briefly tell the user their presentation is ready and describe what it covers.</context>'
+            f'Презентация "{pres_title}" ({slide_count} слайдов{img_note}) '
+            'уже создана и прикреплена как PPTX-файл. Пользователь видит файл для скачивания. '
+            f'Содержание: {slide_outline}. '
+            'Кратко подтверди, что презентация готова, опиши что в ней, и предложи скачать. '
+            'НЕ создавай текстовый план и НЕ перечисляй слайды в виде таблицы — файл уже создан.'
         )
 
     except Exception as e:
         log.exception(e)
         await __event_emitter__(
-            {'type': 'status', 'data': {'description': 'Failed to create presentation', 'done': True}}
+            {'type': 'status', 'data': {'description': 'Ошибка создания презентации', 'done': True}}
         )
         system_message_content = (
-            f'<context>Presentation generation failed with error: {e}. '
-            'Tell the user there was an error creating the presentation.</context>'
+            f'При создании презентации произошла ошибка: {e}. '
+            'Сообщи пользователю об ошибке и предложи попробовать ещё раз.'
         )
 
     if system_message_content:
         form_data['messages'] = add_or_update_system_message(
             system_message_content, form_data['messages']
         )
+        # Replace last user message so the LLM doesn't try to create a text presentation
+        messages = form_data.get('messages', [])
+        for i in range(len(messages) - 1, -1, -1):
+            if messages[i].get('role') == 'user':
+                messages[i]['content'] = 'Подтверди создание презентации (файл уже прикреплён).'
+                break
 
     return form_data
 
