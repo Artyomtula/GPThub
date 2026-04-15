@@ -509,6 +509,32 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
             return False
         return True
 
+    def is_chat_capable_model(model_id):
+        """Filter out models that are not usable for chat completions."""
+        # Image-only models should not appear in the chat model selector
+        if any(
+            name in model_id.lower()
+            for name in [
+                'image',
+                'dall-e',
+                'imagen',
+            ]
+        ):
+            return False
+        # Also exclude known non-chat model types
+        if any(
+            name in model_id.lower()
+            for name in [
+                'babbage',
+                'davinci',
+                'embedding',
+                'tts',
+                'whisper',
+            ]
+        ):
+            return False
+        return True
+
     def get_merged_models(model_lists):
         log.debug(f'merge_models_lists {model_lists}')
         models = {}
@@ -522,6 +548,10 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
                     hostname = urlparse(base_url).hostname if base_url else None
                     if hostname == 'api.openai.com' and not is_supported_openai_models(model_id):
                         # Skip unwanted OpenAI models
+                        continue
+
+                    # Skip image-only / non-chat models for all providers
+                    if not is_chat_capable_model(model_id):
                         continue
 
                     if model_id and model_id not in models:
