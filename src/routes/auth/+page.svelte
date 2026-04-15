@@ -144,25 +144,8 @@
 
 	async function setLogoImage() {
 		await tick();
-		const logo = document.getElementById('logo');
-
-		if (logo) {
-			const isDarkMode = document.documentElement.classList.contains('dark');
-
-			if (isDarkMode) {
-				const darkImage = new Image();
-				darkImage.src = `${WEBUI_BASE_URL}/static/favicon-dark.png`;
-
-				darkImage.onload = () => {
-					logo.src = `${WEBUI_BASE_URL}/static/favicon-dark.png`;
-					logo.style.filter = ''; // Ensure no inversion is applied if favicon-dark.png exists
-				};
-
-				darkImage.onerror = () => {
-					logo.style.filter = 'invert(1)'; // Invert image if favicon-dark.png is missing
-				};
-			}
-		}
+		const isDarkMode = document.documentElement.classList.contains('dark');
+		// Logo is now handled purely via CSS dark:hidden / dark:block classes — no JS needed
 	}
 
 	onMount(async () => {
@@ -239,10 +222,15 @@
 							{#if $config?.metadata?.auth_logo_position === 'center'}
 								<div class="flex justify-center mb-6">
 									<img
-										id="logo"
 										crossorigin="anonymous"
-										src="{WEBUI_BASE_URL}/static/favicon.png"
-										class="size-24 rounded-full"
+										src="{WEBUI_BASE_URL}/static/assets/images/logo-black.png"
+										class="size-24 rounded-full dark:hidden"
+										alt="{$WEBUI_NAME} logo"
+									/>
+									<img
+										crossorigin="anonymous"
+										src="{WEBUI_BASE_URL}/static/assets/images/logo-white.png"
+										class="size-24 rounded-full hidden dark:block"
 										alt="{$WEBUI_NAME} logo"
 									/>
 								</div>
@@ -591,10 +579,15 @@
 				<div class="flex space-x-2">
 					<div class=" self-center">
 						<img
-							id="logo"
 							crossorigin="anonymous"
-							src="{WEBUI_BASE_URL}/static/favicon.png"
-							class=" w-6 rounded-full"
+							src="{WEBUI_BASE_URL}/static/assets/images/logo-black.png"
+							class=" w-6 rounded-full dark:hidden"
+							alt=""
+						/>
+						<img
+							crossorigin="anonymous"
+							src="{WEBUI_BASE_URL}/static/assets/images/logo-white.png"
+							class=" w-6 rounded-full hidden dark:block"
 							alt=""
 						/>
 					</div>

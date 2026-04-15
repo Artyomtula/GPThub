@@ -394,17 +394,8 @@
 						// Prefer local/offline voices: network voices (e.g. "Google US English")
 						// are prone to stutter, clipping, and silent failures on slow connections.
 						if (!voice) {
-							const contentLang = /[\u0400-\u04FF]/.test(content)
-								? 'ru'
-								: /[\u0600-\u06FF]/.test(content)
-									? 'ar'
-									: /[\u4E00-\u9FA5]/.test(content)
-										? 'zh'
-										: /[\u3040-\u30FF]/.test(content)
-											? 'ja'
-											: (localStorage.getItem('locale') || navigator.language || 'en-US')
-													.split('-')[0]
-													.toLowerCase();
+							// Only Russian and English are supported in voice mode
+							const contentLang = /[\u0400-\u04FF]/.test(content) ? 'ru' : 'en';
 
 							const matchingVoices = voices.filter((v) =>
 								v.lang.toLowerCase().startsWith(contentLang)
@@ -413,7 +404,10 @@
 							voice =
 								matchingVoices.find((v) => v.localService) ??
 								matchingVoices[0] ??
-								voices.find((v) => v.localService) ??
+								voices.find(
+									(v) => v.localService && (v.lang.startsWith('en') || v.lang.startsWith('ru'))
+								) ??
+								voices.find((v) => v.lang.startsWith('en') || v.lang.startsWith('ru')) ??
 								voices[0];
 						}
 

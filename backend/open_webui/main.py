@@ -2391,6 +2391,46 @@ def _build_manual_mode_guidance_response(
     selected_caps = infer_model_capabilities(selected_model)
     selected_model_name = selected_model.get('name') or resolved_model_id
 
+    # Image-only model used for a non-image text request.
+    # `infer_model_capabilities` adds 'text' to every image model as a side-effect,
+    # so we check that the *only* substantive capabilities are image_generation + text.
+    _image_only_caps = selected_caps - {'text'}
+    if (
+        _image_only_caps == {'image_generation'}
+        and requested_capability != 'image_generation'
+    ):
+        capability_graph = selection_effective.get('capability_graph') or {}
+        text_candidates = capability_graph.get('text') or []
+        recommended_model_id = text_candidates[0] if text_candidates else ''
+        recommended_model = available_models.get(recommended_model_id) if recommended_model_id else None
+        recommended_model_name = (
+            (recommended_model.get('name') or recommended_model_id) if recommended_model else recommended_model_id
+        )
+
+        quick_action_line = 'Рекомендую переключиться в **Auto Mode** или выбрать текстовую LLM-модель.'
+        if recommended_model_name and recommended_model_id:
+            switch_href = f"gpthub://select-model?{urlencode({'model': recommended_model_id})}"
+            quick_action_line = f'[{recommended_model_name}]({switch_href})'
+
+        content = (
+            f'Модель **{selected_model_name}** предназначена только для генерации изображений '
+            f'и не может отвечать на текстовые запросы.\n\n'
+            f'{quick_action_line}'
+        )
+        return {
+            'id': f'chatcmpl-gpthub-guidance-{uuid4()}',
+            'object': 'chat.completion',
+            'created': int(time.time()),
+            'model': resolved_model_id,
+            'choices': [
+                {
+                    'index': 0,
+                    'message': {'role': 'assistant', 'content': content},
+                    'finish_reason': 'stop',
+                }
+            ],
+        }
+
     if _is_non_chat_model(selected_model):
         capability_graph = selection_effective.get('capability_graph') or {}
 

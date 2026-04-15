@@ -493,59 +493,56 @@
 			{:else}
 				<span class="flex items-center gap-1.5 min-w-0 truncate">
 					{#if showAutoMode && mode === 'auto'}
-						<Sparkles
-							className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
-							strokeWidth="1.8"
-						/>
+						<div
+							class="size-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0"
+						>
+							<Sparkles className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+						</div>
 					{:else if value.startsWith('gpthub:')}
 						{@const agentIcon = getCapabilityIcon(selectedModel?.model)}
-						{#if agentIcon === 'code'}
-							<CodeBracket
-								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
-								strokeWidth="1.8"
-							/>
-						{:else if agentIcon === 'vision'}
-							<Eye className="size-4 shrink-0 text-gray-500 dark:text-gray-400" strokeWidth="1.8" />
-						{:else if agentIcon === 'image'}
-							<Photo
-								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
-								strokeWidth="1.8"
-							/>
-						{:else if agentIcon === 'web'}
-							<GlobeAlt
-								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
-								strokeWidth="1.8"
-							/>
-						{:else if agentIcon === 'research'}
-							<BookOpen
-								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
-								strokeWidth="1.8"
-							/>
-						{:else}
-							<ChatBubbleOval
-								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
-								strokeWidth="1.8"
-							/>
-						{/if}
+						<div
+							class="size-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0"
+						>
+							{#if agentIcon === 'code'}
+								<CodeBracket
+									className="size-3 text-gray-600 dark:text-gray-300"
+									strokeWidth="1.8"
+								/>
+							{:else if agentIcon === 'vision'}
+								<Eye className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+							{:else if agentIcon === 'image'}
+								<Photo className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+							{:else if agentIcon === 'web'}
+								<GlobeAlt className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+							{:else if agentIcon === 'research'}
+								<BookOpen className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+							{:else}
+								<ChatBubbleOval
+									className="size-3 text-gray-600 dark:text-gray-300"
+									strokeWidth="1.8"
+								/>
+							{/if}
+						</div>
 					{:else if selectedModel}
-						{#if getCapabilityIcon(selectedModel.model) === 'image'}
-							<Photo
-								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
-								strokeWidth="1.8"
-							/>
-						{:else if getCapabilityIcon(selectedModel.model) === 'vision'}
-							<Eye className="size-4 shrink-0 text-gray-500 dark:text-gray-400" strokeWidth="1.8" />
-						{:else if getCapabilityIcon(selectedModel.model) === 'code'}
-							<CodeBracket
-								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
-								strokeWidth="1.8"
-							/>
-						{:else}
-							<ChatBubbleOval
-								className="size-4 shrink-0 text-gray-500 dark:text-gray-400"
-								strokeWidth="1.8"
-							/>
-						{/if}
+						<div
+							class="size-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0"
+						>
+							{#if getCapabilityIcon(selectedModel.model) === 'image'}
+								<Photo className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+							{:else if getCapabilityIcon(selectedModel.model) === 'vision'}
+								<Eye className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+							{:else if getCapabilityIcon(selectedModel.model) === 'code'}
+								<CodeBracket
+									className="size-3 text-gray-600 dark:text-gray-300"
+									strokeWidth="1.8"
+								/>
+							{:else}
+								<ChatBubbleOval
+									className="size-3 text-gray-600 dark:text-gray-300"
+									strokeWidth="1.8"
+								/>
+							{/if}
+						</div>
 					{/if}
 					<span class="truncate">{triggerLabel}</span>
 				</span>

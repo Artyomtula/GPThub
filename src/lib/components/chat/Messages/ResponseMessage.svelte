@@ -47,8 +47,30 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import WebSearchResults from './ResponseMessage/WebSearchResults.svelte';
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
+	import CodeBracket from '$lib/components/icons/CodeBracket.svelte';
+	import Photo from '$lib/components/icons/Photo.svelte';
+	import Eye from '$lib/components/icons/Eye.svelte';
+	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
+	import BookOpen from '$lib/components/icons/BookOpen.svelte';
+	import ChatBubbleOval from '$lib/components/icons/ChatBubbleOval.svelte';
 
 	import DeleteConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
+
+	const getCapabilityIcon = (model: any): string => {
+		const id = (model?.id || '').toLowerCase();
+		if (id === 'gpthub:auto') return 'auto';
+		if (id === 'gpthub:code') return 'code';
+		if (id === 'gpthub:vision') return 'vision';
+		if (id === 'gpthub:web') return 'web';
+		if (id === 'gpthub:research') return 'web';
+		const text = `${id} ${(model?.name || '').toLowerCase()}`;
+		const caps = model?.info?.meta?.capabilities || {};
+		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text))
+			return 'image';
+		if (caps.vision || /\b(vision|vl\b|multimodal)\b/.test(text)) return 'vision';
+		if (caps.code || /\b(coder|code|program)\b/.test(text)) return 'code';
+		return 'text';
+	};
 
 	import Error from './Error.svelte';
 	import Citations from './Citations.svelte';
@@ -632,10 +654,23 @@
 		style="scroll-margin-top: 3rem;"
 	>
 		<div class={`shrink-0 ltr:mr-3 rtl:ml-3 hidden @lg:flex mt-1 `}>
-			<ProfileImage
-				src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}`}
-				className={'size-8 assistant-message-profile-image'}
-			/>
+			<div
+				class="size-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center assistant-message-profile-image"
+			>
+				{#if getCapabilityIcon(model) === 'auto'}
+					<Sparkles className="size-4 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+				{:else if getCapabilityIcon(model) === 'code'}
+					<CodeBracket className="size-4 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+				{:else if getCapabilityIcon(model) === 'vision'}
+					<Eye className="size-4 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+				{:else if getCapabilityIcon(model) === 'image'}
+					<Photo className="size-4 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+				{:else if getCapabilityIcon(model) === 'web'}
+					<GlobeAlt className="size-4 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+				{:else}
+					<ChatBubbleOval className="size-4 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+				{/if}
+			</div>
 		</div>
 
 		<div class="flex-auto w-0 pl-1 relative">

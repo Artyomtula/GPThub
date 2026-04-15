@@ -4452,6 +4452,18 @@ async def streaming_chat_response_handler(response, ctx):
                             delta_count = 0
                             last_delta_data = None
 
+                    # Guard: if the response is not a StreamingResponse (e.g. a
+                    # JSONResponse from an image-only model receiving a text request),
+                    # emit the error body as a chat completion event and return.
+                    if not hasattr(response, 'body_iterator'):
+                        try:
+                            error_body = response.body.decode('utf-8', 'replace') if isinstance(response.body, bytes) else str(getattr(response, 'body', ''))
+                            error_data = json.loads(error_body) if error_body else {}
+                        except Exception:
+                            error_data = {}
+                        await event_emitter({'type': 'chat:completion', 'data': {'error': error_data or {'detail': 'Model returned a non-streaming response.'}, 'done': True}})
+                        return
+
                     async for line in response.body_iterator:
                         line = line.decode('utf-8', 'replace') if isinstance(line, bytes) else line
                         data = line
