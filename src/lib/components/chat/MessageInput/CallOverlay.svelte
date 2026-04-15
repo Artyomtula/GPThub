@@ -402,11 +402,7 @@
 										? 'zh'
 										: /[\u3040-\u30FF]/.test(content)
 											? 'ja'
-											: (
-													localStorage.getItem('locale') ||
-													navigator.language ||
-													'en-US'
-												)
+											: (localStorage.getItem('locale') || navigator.language || 'en-US')
 													.split('-')[0]
 													.toLowerCase();
 
@@ -459,11 +455,9 @@
 					audioElement.muted = false;
 					audioElement.playbackRate = $settings.audio?.tts?.playbackRate ?? 1;
 
-					audioElement
-						.play()
-						.catch((error) => {
-							console.error(error);
-						});
+					audioElement.play().catch((error) => {
+						console.error(error);
+					});
 
 					audioElement.onended = async (e) => {
 						await new Promise((r) => setTimeout(r, 100));

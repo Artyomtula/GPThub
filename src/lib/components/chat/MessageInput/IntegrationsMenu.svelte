@@ -224,7 +224,9 @@
 							<button
 								class="flex w-full justify-between gap-2 items-center px-3 py-1.5 text-sm cursor-pointer rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50"
 								on:click={() => {
-									webSearchEnabled = !webSearchEnabled;								if (webSearchEnabled) imageGenerationEnabled = false;								}}
+									webSearchEnabled = !webSearchEnabled;
+									if (webSearchEnabled) imageGenerationEnabled = false;
+								}}
 							>
 								<div class="flex-1 truncate">
 									<div class="flex flex-1 gap-2 items-center">
@@ -257,7 +259,9 @@
 							<button
 								class="flex w-full justify-between gap-2 items-center px-3 py-1.5 text-sm cursor-pointer rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50"
 								on:click={() => {
-									deepResearchEnabled = !deepResearchEnabled;								if (deepResearchEnabled) imageGenerationEnabled = false;								}}
+									deepResearchEnabled = !deepResearchEnabled;
+									if (deepResearchEnabled) imageGenerationEnabled = false;
+								}}
 							>
 								<div class="flex-1 truncate">
 									<div class="flex flex-1 gap-2 items-center">
@@ -286,12 +290,14 @@
 							<button
 								class="flex w-full justify-between gap-2 items-center px-3 py-1.5 text-sm cursor-pointer rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50"
 								on:click={() => {
-									imageGenerationEnabled = !imageGenerationEnabled;								if (imageGenerationEnabled) {
-									webSearchEnabled = false;
-									deepResearchEnabled = false;
-									codeInterpreterEnabled = false;
-									presentationEnabled = false;
-								}								}}
+									imageGenerationEnabled = !imageGenerationEnabled;
+									if (imageGenerationEnabled) {
+										webSearchEnabled = false;
+										deepResearchEnabled = false;
+										codeInterpreterEnabled = false;
+										presentationEnabled = false;
+									}
+								}}
 							>
 								<div class="flex-1 truncate">
 									<div class="flex flex-1 gap-2 items-center">
@@ -325,7 +331,9 @@
 									? $i18n.t('Disable Code Interpreter')
 									: $i18n.t('Enable Code Interpreter')}
 								on:click={() => {
-									codeInterpreterEnabled = !codeInterpreterEnabled;								if (codeInterpreterEnabled) imageGenerationEnabled = false;								}}
+									codeInterpreterEnabled = !codeInterpreterEnabled;
+									if (codeInterpreterEnabled) imageGenerationEnabled = false;
+								}}
 							>
 								<div class="flex-1 truncate">
 									<div class="flex flex-1 gap-2 items-center">
@@ -356,7 +364,9 @@
 								class="flex w-full justify-between gap-2 items-center px-3 py-1.5 text-sm cursor-pointer rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50"
 								aria-pressed={presentationEnabled}
 								on:click={() => {
-									presentationEnabled = !presentationEnabled;								if (presentationEnabled) imageGenerationEnabled = false;								}}
+									presentationEnabled = !presentationEnabled;
+									if (presentationEnabled) imageGenerationEnabled = false;
+								}}
 							>
 								<div class="flex-1 truncate">
 									<div class="flex flex-1 gap-2 items-center">
