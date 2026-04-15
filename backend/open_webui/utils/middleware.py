@@ -1407,6 +1407,8 @@ async def chat_memory_handler(request: Request, form_data: dict, extra_params: d
     # This prevents relevant personal facts from being silently dropped when the
     # current query topic doesn't happen to match them semantically.
     SMALL_MEMORY_THRESHOLD = 15
+    # Only personal facts are injected — never AI instructions or task-scoped data.
+    ALLOWED_MEMORY_TYPES = {'identity', 'preference', 'profile'}
     all_memories = Memories.get_memories_by_user_id(user.id) or []
 
     if len(all_memories) <= SMALL_MEMORY_THRESHOLD:
@@ -1418,7 +1420,9 @@ async def chat_memory_handler(request: Request, form_data: dict, extra_params: d
                 expires_at = structured.get('expires_at')
                 if isinstance(expires_at, int) and expires_at > 0 and now_ts > expires_at:
                     continue
-                mem_type = str(structured.get('type') or 'fact')
+                mem_type = str(structured.get('type') or 'fact').lower()
+                if mem_type not in ALLOWED_MEMORY_TYPES:
+                    continue
                 mem_value = str(structured.get('value') or '').strip()
                 if not mem_value:
                     continue
@@ -1435,6 +1439,7 @@ async def chat_memory_handler(request: Request, form_data: dict, extra_params: d
                 )
                 user_context += f'{idx + 1}. [{created_at_date}] [{mem_type}{confidence_text}] {mem_value}\n'
             else:
+                # Unstructured legacy memory — include as-is
                 created_at_date = (
                     time.strftime('%Y-%m-%d', time.localtime(mem.created_at))
                     if mem.created_at
@@ -1473,7 +1478,9 @@ async def chat_memory_handler(request: Request, form_data: dict, extra_params: d
                         created_at_date = time.strftime('%Y-%m-%d', time.localtime(created_at_timestamp))
 
                     if structured:
-                        mem_type = str(structured.get('type') or 'fact')
+                        mem_type = str(structured.get('type') or 'fact').lower()
+                        if mem_type not in ALLOWED_MEMORY_TYPES:
+                            continue
                         mem_value = str(structured.get('value') or '').strip()
                         if not mem_value:
                             continue
@@ -3193,27 +3200,26 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
     # Auto memory read (long-term user context):
     # enabled by default when memory subsystem is active, unless explicitly disabled
-    # by `features.memory = false`.
+    # by `features.memory = false` or when running in voice mode.
+    is_voice = features.get('voice', False)
     use_memory_context = (
         request.app.state.config.ENABLE_MEMORIES
         and metadata.get('params', {}).get('function_calling') != 'native'
         and features.get('memory', True)
+        and not is_voice
     )
     if use_memory_context:
         form_data = await chat_memory_handler(request, form_data, extra_params, user)
 
     if features:
         if 'voice' in features and features['voice']:
-            if request.app.state.config.VOICE_MODE_PROMPT_TEMPLATE != None:
-                if request.app.state.config.VOICE_MODE_PROMPT_TEMPLATE != '':
-                    template = request.app.state.config.VOICE_MODE_PROMPT_TEMPLATE
-                else:
-                    template = DEFAULT_VOICE_MODE_PROMPT_TEMPLATE
+            # Always use the built-in voice prompt — ignore stale DB-persisted values.
+            template = DEFAULT_VOICE_MODE_PROMPT_TEMPLATE
 
-                form_data['messages'] = add_or_update_system_message(
-                    template,
-                    form_data['messages'],
-                )
+            form_data['messages'] = add_or_update_system_message(
+                template,
+                form_data['messages'],
+            )
 
         if 'web_search' in features and features['web_search']:
             # Skip forced RAG web search when native FC is enabled - model can use web_search tool

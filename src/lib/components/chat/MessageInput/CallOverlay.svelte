@@ -11,7 +11,6 @@
 	import { toast } from 'svelte-sonner';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import VideoInputMenu from './CallOverlay/VideoInputMenu.svelte';
 	import { KokoroWorker } from '$lib/workers/KokoroWorker';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 
@@ -157,7 +156,7 @@
 		const res = await transcribeAudio(
 			localStorage.token,
 			file,
-			$settings?.audio?.stt?.language
+			$settings?.audio?.stt?.language || 'ru'
 		).catch((error) => {
 			toast.error(`${error}`);
 			return null;
@@ -386,48 +385,18 @@
 						clearInterval(getVoicesLoop);
 
 						const voiceId = getVoiceId();
-						let voice = voices?.filter((v) => v.voiceURI === voiceId)?.at(0) ?? undefined;
-
-						// No exact match — detect the language from the content itself so that
-						// a Russian response always gets a Russian voice regardless of the UI
-						// locale, and an English response always gets an English voice.
-						// Prefer local/offline voices: network voices (e.g. "Google US English")
-						// are prone to stutter, clipping, and silent failures on slow connections.
-						if (!voice) {
-							// Only Russian and English are supported in voice mode
-							const contentLang = /[\u0400-\u04FF]/.test(content) ? 'ru' : 'en';
-
-							const matchingVoices = voices.filter((v) =>
-								v.lang.toLowerCase().startsWith(contentLang)
-							);
-
-							voice =
-								matchingVoices.find((v) => v.localService) ??
-								matchingVoices[0] ??
-								voices.find(
-									(v) => v.localService && (v.lang.startsWith('en') || v.lang.startsWith('ru'))
-								) ??
-								voices.find((v) => v.lang.startsWith('en') || v.lang.startsWith('ru')) ??
-								voices[0];
-						}
+						const voice = voices?.filter((v) => v.voiceURI === voiceId)?.at(0) ?? undefined;
 
 						currentUtterance = new SpeechSynthesisUtterance(content);
 						currentUtterance.rate = $settings.audio?.tts?.playbackRate ?? 1;
+						currentUtterance.lang = $i18n.resolvedLanguage ?? 'ru-RU';
 
 						if (voice) {
 							currentUtterance.voice = voice;
-							currentUtterance.lang = voice.lang;
 						}
-
-						// Chrome bug: speechSynthesis silently pauses after ~15 s.
-						// Poll and resume to keep long responses playing without cuts.
-						const resumeTimer = setInterval(() => {
-							if (speechSynthesis.paused) speechSynthesis.resume();
-						}, 5000);
 
 						speechSynthesis.speak(currentUtterance);
 						currentUtterance.onend = async (e) => {
-							clearInterval(resumeTimer);
 							await new Promise((r) => setTimeout(r, 200));
 							resolve(e);
 						};
@@ -446,12 +415,17 @@
 
 				if (audioElement) {
 					audioElement.src = audio.src;
-					audioElement.muted = false;
+					audioElement.muted = true;
 					audioElement.playbackRate = $settings.audio?.tts?.playbackRate ?? 1;
 
-					audioElement.play().catch((error) => {
-						console.error(error);
-					});
+					audioElement
+						.play()
+						.then(() => {
+							audioElement.muted = false;
+						})
+						.catch((error) => {
+							console.error(error);
+						});
 
 					audioElement.onended = async (e) => {
 						await new Promise((r) => setTimeout(r, 100));
@@ -543,6 +517,10 @@
 	let messages = {};
 
 	const monitorAndPlayAudio = async (id, signal) => {
+		// Clear any speech queued by other code (e.g. voice ack) so it
+		// doesn't play with the wrong voice/language settings.
+		speechSynthesis.cancel();
+
 		while (!signal.aborted) {
 			if (messages[id] && messages[id].length > 0) {
 				// Retrieve the next content string from the queue
@@ -722,11 +700,17 @@
 </script>
 
 {#if $showCallOverlay}
-	<div class="max-w-lg w-full h-full max-h-[100dvh] flex flex-col justify-between p-3 md:p-6">
-		{#if camera}
+	<div class="relative max-w-lg w-full h-full max-h-[100dvh] flex flex-col items-center justify-between p-6 overflow-hidden">
+		<!-- GPThub gradient background -->
+		<div class="gpthub-gradient-bg absolute inset-0 pointer-events-none" aria-hidden="true">
+			<span></span><i></i>
+		</div>
+
+		<!-- Main content: centered mic/avatar -->
+		<div class="flex-1 flex flex-col items-center justify-center z-10 w-full">
 			<button
 				type="button"
-				class="flex justify-center items-center w-full h-20 min-h-20"
+				class="focus:outline-none"
 				on:click={() => {
 					if (assistantSpeaking) {
 						stopAllAudio();
@@ -735,159 +719,68 @@
 			>
 				{#if emoji}
 					<div
-						class="  transition-all rounded-full"
+						class="transition-all rounded-full"
 						style="font-size:{rmsLevel * 100 > 4
-							? '4.5'
+							? '8'
 							: rmsLevel * 100 > 2
-								? '4.25'
+								? '7'
 								: rmsLevel * 100 > 1
-									? '3.75'
-									: '3.5'}rem;width: 100%; text-align:center;"
+									? '6.5'
+									: '6'}rem; width: 100%; text-align: center;"
 					>
 						{emoji}
 					</div>
 				{:else if loading || assistantSpeaking}
-					<div class="voice-wave voice-wave-sm">
-						<span style="--i:0"></span>
-						<span style="--i:1"></span>
-						<span style="--i:2"></span>
-						<span style="--i:3"></span>
-						<span style="--i:4"></span>
-					</div>
-				{:else}
-					<div
-						class=" {rmsLevel * 100 > 4
-							? ' size-[4.5rem]'
-							: rmsLevel * 100 > 2
-								? ' size-16'
-								: rmsLevel * 100 > 1
-									? 'size-14'
-									: 'size-12'}  transition-all rounded-full bg-cover bg-center bg-no-repeat"
-						style={`background-image: url('${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}&voice=true');`}
-					/>
-				{/if}
-				<!-- navbar -->
-			</button>
-		{/if}
-
-		<div class="flex justify-center items-center flex-1 h-full w-full max-h-full">
-			{#if !camera}
-				<button
-					type="button"
-					on:click={() => {
-						if (assistantSpeaking) {
-							stopAllAudio();
-						}
-					}}
-				>
-					{#if emoji}
-						<div
-							class="  transition-all rounded-full"
-							style="font-size:{rmsLevel * 100 > 4
-								? '13'
-								: rmsLevel * 100 > 2
-									? '12'
-									: rmsLevel * 100 > 1
-										? '11.5'
-										: '11'}rem;width:100%;text-align:center;"
-						>
-							{emoji}
-						</div>
-					{:else if loading || assistantSpeaking}
-						<div class="voice-wave voice-wave-lg">
-							<span style="--i:0"></span>
-							<span style="--i:1"></span>
-							<span style="--i:2"></span>
-							<span style="--i:3"></span>
-							<span style="--i:4"></span>
-							<span style="--i:5"></span>
-							<span style="--i:6"></span>
-						</div>
-					{:else}
-						<div
-							class=" {rmsLevel * 100 > 4
-								? ' size-52'
-								: rmsLevel * 100 > 2
-									? 'size-48'
-									: rmsLevel * 100 > 1
-										? 'size-44'
-										: 'size-40'} transition-all rounded-full bg-cover bg-center bg-no-repeat"
-							style={`background-image: url('${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}&voice=true');`}
-						/>
-					{/if}
-				</button>
-			{:else}
-				<div class="relative flex video-container w-full max-h-full pt-2 pb-4 md:py-6 px-2 h-full">
-					<!-- svelte-ignore a11y-media-has-caption -->
-					<video
-						id="camera-feed"
-						autoplay
-						class="rounded-2xl h-full min-w-full object-cover object-center"
-						playsinline
-					/>
-
-					<canvas id="camera-canvas" style="display:none;" />
-
-					<div class=" absolute top-4 md:top-8 left-4">
-						<button
-							type="button"
-							class="p-1.5 text-white cursor-pointer backdrop-blur-xl bg-black/10 rounded-full"
-							on:click={() => {
-								stopCamera();
-							}}
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								viewBox="0 0 16 16"
-								fill="currentColor"
-								class="size-6"
-							>
-								<path
-									d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z"
-								/>
-							</svg>
-						</button>
-					</div>
-				</div>
-			{/if}
-		</div>
-
-		<div class="flex justify-between items-center pb-2 w-full">
-			<div>
-				{#if camera}
-					<VideoInputMenu
-						devices={videoInputDevices}
-						on:change={async (e) => {
-							console.log(e.detail);
-							selectedVideoInputDeviceId = e.detail;
-							await stopVideoStream();
-							await startVideoStream();
-						}}
+					<!-- Animated dots -->
+					<svg
+						class="size-24 text-white/70"
+						viewBox="0 0 24 24"
+						fill="currentColor"
+						xmlns="http://www.w3.org/2000/svg"
 					>
-						<button class=" p-3 rounded-full bg-gray-50 dark:bg-gray-900" type="button">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								viewBox="0 0 20 20"
-								fill="currentColor"
-								class="size-5"
-							>
-								<path
-									fill-rule="evenodd"
-									d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Zm1.23-3.723a.75.75 0 0 0 .219-.53V2.929a.75.75 0 0 0-1.5 0V5.36l-.31-.31A7 7 0 0 0 3.239 8.188a.75.75 0 1 0 1.448.389A5.5 5.5 0 0 1 13.89 6.11l.311.31h-2.432a.75.75 0 0 0 0 1.5h4.243a.75.75 0 0 0 .53-.219Z"
-									clip-rule="evenodd"
-								/>
-							</svg>
-						</button>
-					</VideoInputMenu>
+						<style>
+							.spinner_qM83 {
+								animation: spinner_8HQG 1.05s infinite;
+							}
+							.spinner_oXPr {
+								animation-delay: 0.1s;
+							}
+							.spinner_ZTLf {
+								animation-delay: 0.2s;
+							}
+							@keyframes spinner_8HQG {
+								0%,
+								57.14% {
+									animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1);
+									transform: translate(0);
+								}
+								28.57% {
+									animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33);
+									transform: translateY(-6px);
+								}
+								100% {
+									transform: translate(0);
+								}
+							}
+						</style>
+						<circle class="spinner_qM83" cx="4" cy="12" r="3" />
+						<circle class="spinner_qM83 spinner_oXPr" cx="12" cy="12" r="3" />
+						<circle class="spinner_qM83 spinner_ZTLf" cx="20" cy="12" r="3" />
+					</svg>
 				{:else}
-					<Tooltip content={$i18n.t('Camera')}>
-						<button
-							class=" p-3 rounded-full bg-gray-50 dark:bg-gray-900"
-							type="button"
-							on:click={async () => {
-								await navigator.mediaDevices.getUserMedia({ video: true });
-								startCamera();
-							}}
+					<!-- Pulsing microphone circle -->
+					<div class="relative flex items-center justify-center">
+						<!-- Pulse ring -->
+						<div
+							class="absolute rounded-full bg-white/10 transition-all duration-200"
+							style="width: {rmsLevel * 100 > 4 ? 11 : rmsLevel * 100 > 2 ? 10 : rmsLevel * 100 > 1 ? 9 : 8}rem;
+							       height: {rmsLevel * 100 > 4 ? 11 : rmsLevel * 100 > 2 ? 10 : rmsLevel * 100 > 1 ? 9 : 8}rem;"
+						></div>
+						<!-- Mic icon container -->
+						<div
+							class="relative flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm transition-all duration-200"
+							style="width: {rmsLevel * 100 > 4 ? 8 : rmsLevel * 100 > 2 ? 7.5 : rmsLevel * 100 > 1 ? 7 : 6.5}rem;
+							       height: {rmsLevel * 100 > 4 ? 8 : rmsLevel * 100 > 2 ? 7.5 : rmsLevel * 100 > 1 ? 7 : 6.5}rem;"
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -895,129 +788,65 @@
 								viewBox="0 0 24 24"
 								stroke-width="1.5"
 								stroke="currentColor"
-								class="size-5"
+								class="size-10 text-white"
 							>
 								<path
 									stroke-linecap="round"
 									stroke-linejoin="round"
-									d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"
-								/>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"
+									d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"
 								/>
 							</svg>
-						</button>
-					</Tooltip>
-				{/if}
-			</div>
-
-			<div>
-				<button
-					type="button"
-					on:click={() => {
-						if (assistantSpeaking) {
-							stopAllAudio();
-						}
-					}}
-				>
-					<div class=" line-clamp-1 text-sm font-medium">
-						{#if loading}
-							{$i18n.t('Thinking...')}
-						{:else if assistantSpeaking}
-							{$i18n.t('Tap to interrupt')}
-						{:else}
-							{$i18n.t('Listening...')}
-						{/if}
+						</div>
 					</div>
-				</button>
-			</div>
+				{/if}
+			</button>
+		</div>
 
-			<div>
-				<button
-					class=" p-3 rounded-full bg-gray-50 dark:bg-gray-900"
-					on:click={async () => {
-						await stopAudioStream();
-						await stopVideoStream();
+		<!-- Bottom bar -->
+		<div class="flex items-center justify-between w-full z-10 pb-2">
+			<div class="w-12"></div>
 
-						console.log(audioStream);
-						console.log(cameraStream);
+			<button
+				type="button"
+				class="focus:outline-none"
+				on:click={() => {
+					if (assistantSpeaking) {
+						stopAllAudio();
+					}
+				}}
+			>
+				<div class="text-sm font-medium text-white/90">
+					{#if loading}
+						{$i18n.t('Thinking...')}
+					{:else if assistantSpeaking}
+						{$i18n.t('Tap to interrupt')}
+					{:else}
+						{$i18n.t('Listening...')}
+					{/if}
+				</div>
+			</button>
 
-						showCallOverlay.set(false);
-						dispatch('close');
-					}}
-					type="button"
+			<button
+				class="p-3 rounded-full bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 transition-colors"
+				on:click={async () => {
+					await stopAudioStream();
+					showCallOverlay.set(false);
+					dispatch('close');
+				}}
+				type="button"
+				aria-label="Close"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="size-5"
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-						class="size-5"
-					>
-						<path
-							d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"
-						/>
-					</svg>
-				</button>
-			</div>
+					<path
+						d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"
+					/>
+				</svg>
+			</button>
 		</div>
 	</div>
 {/if}
-
-<style>
-	/* Voice wave animation bars */
-	.voice-wave {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 3px;
-	}
-
-	.voice-wave span {
-		display: inline-block;
-		border-radius: 9999px;
-		background: currentColor;
-		will-change: transform, opacity;
-		transform-origin: center;
-		animation: voice-wave-bar 1.2s ease-in-out calc(var(--i) * 0.15s) infinite;
-	}
-
-	/* Small variant (camera mode) */
-	.voice-wave-sm {
-		height: 3rem;
-		color: rgb(107 114 128);
-	}
-	:global(.dark) .voice-wave-sm {
-		color: rgb(156 163 175);
-	}
-	.voice-wave-sm span {
-		width: 4px;
-		height: 12px;
-	}
-
-	/* Large variant (full-screen mode) */
-	.voice-wave-lg {
-		height: 11rem;
-		color: rgb(107 114 128);
-	}
-	:global(.dark) .voice-wave-lg {
-		color: rgb(156 163 175);
-	}
-	.voice-wave-lg span {
-		width: 8px;
-		height: 24px;
-	}
-
-	@keyframes voice-wave-bar {
-		0%,
-		100% {
-			transform: scaleY(1);
-			opacity: 0.5;
-		}
-		50% {
-			transform: scaleY(2.8);
-			opacity: 1;
-		}
-	}
-</style>

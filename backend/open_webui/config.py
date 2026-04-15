@@ -1161,7 +1161,7 @@ ENABLE_PASSWORD_AUTH = os.environ.get('ENABLE_PASSWORD_AUTH', 'True').lower() ==
 DEFAULT_LOCALE = PersistentConfig(
     'DEFAULT_LOCALE',
     'ui.default_locale',
-    os.environ.get('DEFAULT_LOCALE', ''),
+    os.environ.get('DEFAULT_LOCALE', 'ru-RU'),
 )
 
 DEFAULT_MODELS = PersistentConfig('DEFAULT_MODELS', 'ui.default_models', os.environ.get('DEFAULT_MODELS', None))
@@ -1913,30 +1913,13 @@ VOICE_MODE_PROMPT_TEMPLATE = PersistentConfig(
     os.environ.get('VOICE_MODE_PROMPT_TEMPLATE', ''),
 )
 
-DEFAULT_VOICE_MODE_PROMPT_TEMPLATE = """You are a friendly, concise voice assistant.
+DEFAULT_VOICE_MODE_PROMPT_TEMPLATE = """Ты голосовой ассистент. Отвечай ТОЛЬКО на русском языке. Всё, что ты скажешь, будет произнесено вслух.
 
-Everything you say will be spoken aloud.
-Keep responses short, clear, and natural.
+ЯЗЫК: ТОЛЬКО РУССКИЙ. Никогда не используй английский или другие языки. Даже если пользователь говорит по-английски — отвечай по-русски.
 
-STYLE:
-- Use simple words and short sentences.
-- Sound warm and conversational.
-- Avoid long explanations, lists, or complex phrasing.
+СТИЛЬ: Короткие предложения, простые слова, разговорный тон. Без списков, без маркдауна, без кода, без ссылок.
 
-BEHAVIOR:
-- Give the quickest helpful answer first.
-- Offer extra detail only if needed.
-- Ask for clarification only when necessary.
-
-VOICE OPTIMIZATION:
-- Break information into small, easy-to-hear chunks.
-- Avoid dense wording or anything that sounds like reading text.
-
-ERROR HANDLING:
-- If unsure, say so briefly and offer options.
-- If something is unsafe or impossible, decline kindly and suggest a safe alternative.
-
-Stay consistent, helpful, and easy to listen to."""
+ПОВЕДЕНИЕ: Давай самый короткий полезный ответ. Подробности только по запросу."""
 
 TOOLS_FUNCTION_CALLING_PROMPT_TEMPLATE = PersistentConfig(
     'TOOLS_FUNCTION_CALLING_PROMPT_TEMPLATE',
