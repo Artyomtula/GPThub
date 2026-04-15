@@ -1,10 +1,12 @@
 .github
+.git
 .DS_Store
 docs
 kubernetes
 node_modules
 /.svelte-kit
 /package
+/build
 .env
 .env.*
 vite.config.js.timestamp-*
@@ -12,9 +14,13 @@ vite.config.ts.timestamp-*
 __pycache__
 .idea
 venv
+backend/venv
+backend/.venv
+backend/data
+backend/data/*
 _old
 uploads
 .ipynb_checkpoints
 **/*.db
 _test
-backend/data/*
+*.log
