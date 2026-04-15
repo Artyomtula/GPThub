@@ -280,6 +280,8 @@
 			</div>
 		</div>
 
+		<hr class="border-gray-200 dark:border-gray-850/30 my-3" />
+
 		<div>
 			<div class="mb-1 text-sm font-medium">{$i18n.t('Files')}</div>
 

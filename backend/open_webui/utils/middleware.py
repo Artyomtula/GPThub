@@ -9,7 +9,6 @@ import textwrap
 import asyncio
 from aiocache import cached
 from typing import Any, Optional
-import random
 import json
 import html
 import inspect
@@ -57,6 +56,7 @@ from open_webui.routers.pipelines import (
     process_pipeline_outlet_filter,
 )
 from open_webui.routers.memories import query_memory, QueryMemoryForm
+from open_webui.models.memories import Memories
 
 from open_webui.utils.webhook import post_webhook
 from open_webui.utils.files import (
@@ -1391,21 +1391,6 @@ async def chat_completion_tools_handler(
 
 
 async def chat_memory_handler(request: Request, form_data: dict, extra_params: dict, user):
-    try:
-        results = await query_memory(
-            request,
-            QueryMemoryForm(
-                **{
-                    'content': get_last_user_message(form_data['messages']) or '',
-                    'k': 3,
-                }
-            ),
-            user,
-        )
-    except Exception as e:
-        log.debug(e)
-        results = None
-
     def parse_structured_memory_text(doc_text: str) -> Optional[dict]:
         try:
             payload = json.loads(doc_text)
@@ -1415,39 +1400,92 @@ async def chat_memory_handler(request: Request, form_data: dict, extra_params: d
             return None
         return None
 
-    user_context = ''
     now_ts = int(time.time())
-    if results and hasattr(results, 'documents'):
-        if results.documents and len(results.documents) > 0:
-            for doc_idx, doc in enumerate(results.documents[0]):
-                structured = parse_structured_memory_text(doc)
-                if structured:
-                    if structured.get('status') == 'inactive':
-                        continue
-                    expires_at = structured.get('expires_at')
-                    if isinstance(expires_at, int) and expires_at > 0 and now_ts > expires_at:
-                        continue
+    user_context = ''
 
-                created_at_date = 'Unknown Date'
+    # For small memory sets, inject all memories directly without semantic filtering.
+    # This prevents relevant personal facts from being silently dropped when the
+    # current query topic doesn't happen to match them semantically.
+    SMALL_MEMORY_THRESHOLD = 15
+    all_memories = Memories.get_memories_by_user_id(user.id) or []
 
-                if results.metadatas[0][doc_idx].get('created_at'):
-                    created_at_timestamp = results.metadatas[0][doc_idx]['created_at']
-                    created_at_date = time.strftime('%Y-%m-%d', time.localtime(created_at_timestamp))
+    if len(all_memories) <= SMALL_MEMORY_THRESHOLD:
+        for idx, mem in enumerate(all_memories):
+            structured = parse_structured_memory_text(mem.content)
+            if structured:
+                if structured.get('status') == 'inactive':
+                    continue
+                expires_at = structured.get('expires_at')
+                if isinstance(expires_at, int) and expires_at > 0 and now_ts > expires_at:
+                    continue
+                mem_type = str(structured.get('type') or 'fact')
+                mem_value = str(structured.get('value') or '').strip()
+                if not mem_value:
+                    continue
+                confidence = structured.get('confidence')
+                confidence_text = ''
+                try:
+                    confidence_text = f' ({round(float(confidence), 2)})'
+                except Exception:
+                    pass
+                created_at_date = (
+                    time.strftime('%Y-%m-%d', time.localtime(mem.created_at))
+                    if mem.created_at
+                    else 'Unknown Date'
+                )
+                user_context += f'{idx + 1}. [{created_at_date}] [{mem_type}{confidence_text}] {mem_value}\n'
+            else:
+                created_at_date = (
+                    time.strftime('%Y-%m-%d', time.localtime(mem.created_at))
+                    if mem.created_at
+                    else 'Unknown Date'
+                )
+                user_context += f'{idx + 1}. [{created_at_date}] {mem.content}\n'
+    else:
+        # Large memory store: use semantic search to retrieve the most relevant ones.
+        try:
+            results = await query_memory(
+                request,
+                QueryMemoryForm(
+                    content=get_last_user_message(form_data['messages']) or '',
+                    k=8,
+                ),
+                user,
+            )
+        except Exception as e:
+            log.debug(e)
+            results = None
 
-                if structured:
-                    mem_type = str(structured.get('type') or 'fact')
-                    mem_value = str(structured.get('value') or '').strip()
-                    if not mem_value:
-                        continue
-                    confidence = structured.get('confidence')
-                    confidence_text = ''
-                    try:
-                        confidence_text = f" ({round(float(confidence), 2)})"
-                    except Exception:
+        if results and hasattr(results, 'documents'):
+            if results.documents and len(results.documents) > 0:
+                for doc_idx, doc in enumerate(results.documents[0]):
+                    structured = parse_structured_memory_text(doc)
+                    if structured:
+                        if structured.get('status') == 'inactive':
+                            continue
+                        expires_at = structured.get('expires_at')
+                        if isinstance(expires_at, int) and expires_at > 0 and now_ts > expires_at:
+                            continue
+
+                    created_at_date = 'Unknown Date'
+                    if results.metadatas[0][doc_idx].get('created_at'):
+                        created_at_timestamp = results.metadatas[0][doc_idx]['created_at']
+                        created_at_date = time.strftime('%Y-%m-%d', time.localtime(created_at_timestamp))
+
+                    if structured:
+                        mem_type = str(structured.get('type') or 'fact')
+                        mem_value = str(structured.get('value') or '').strip()
+                        if not mem_value:
+                            continue
+                        confidence = structured.get('confidence')
                         confidence_text = ''
-                    user_context += f'{doc_idx + 1}. [{created_at_date}] [{mem_type}{confidence_text}] {mem_value}\n'
-                else:
-                    user_context += f'{doc_idx + 1}. [{created_at_date}] {doc}\n'
+                        try:
+                            confidence_text = f' ({round(float(confidence), 2)})'
+                        except Exception:
+                            pass
+                        user_context += f'{doc_idx + 1}. [{created_at_date}] [{mem_type}{confidence_text}] {mem_value}\n'
+                    else:
+                        user_context += f'{doc_idx + 1}. [{created_at_date}] {doc}\n'
 
     if user_context.strip():
         form_data['messages'] = add_or_update_system_message(
@@ -2972,35 +3010,6 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     # -> Chat Code Interpreter (Form Data Update) -> (Default) Chat Tools Function Calling
     # -> Chat Files
 
-    # Arena model resolution — pick the sub-model now so all downstream
-    # processing (knowledge, capabilities, tools, params) uses its settings
-    # instead of the empty arena wrapper.
-    if model.get('owned_by') == 'arena':
-        arena_model_ids = model.get('info', {}).get('meta', {}).get('model_ids')
-        arena_filter_mode = model.get('info', {}).get('meta', {}).get('filter_mode')
-        if arena_model_ids and arena_filter_mode == 'exclude':
-            arena_model_ids = [
-                available_model['id']
-                for available_model in request.app.state.MODELS.values()
-                if available_model.get('owned_by') != 'arena' and available_model['id'] not in arena_model_ids
-            ]
-
-        if isinstance(arena_model_ids, list) and arena_model_ids:
-            selected_model_id = random.choice(arena_model_ids)
-        else:
-            arena_model_ids = [
-                available_model['id']
-                for available_model in request.app.state.MODELS.values()
-                if available_model.get('owned_by') != 'arena'
-            ]
-            selected_model_id = random.choice(arena_model_ids)
-
-        selected_model = request.app.state.MODELS.get(selected_model_id)
-        if selected_model:
-            model = selected_model
-            form_data['model'] = selected_model_id
-            metadata['selected_model_id'] = selected_model_id
-
     form_data = apply_params_to_form_data(form_data, model)
     log.debug(f'form_data: {form_data}')
 
@@ -4442,6 +4451,18 @@ async def streaming_chat_response_handler(response, ctx):
                             )
                             delta_count = 0
                             last_delta_data = None
+
+                    # Guard: if the response is not a StreamingResponse (e.g. a
+                    # JSONResponse from an image-only model receiving a text request),
+                    # emit the error body as a chat completion event and return.
+                    if not hasattr(response, 'body_iterator'):
+                        try:
+                            error_body = response.body.decode('utf-8', 'replace') if isinstance(response.body, bytes) else str(getattr(response, 'body', ''))
+                            error_data = json.loads(error_body) if error_body else {}
+                        except Exception:
+                            error_data = {}
+                        await event_emitter({'type': 'chat:completion', 'data': {'error': error_data or {'detail': 'Model returned a non-streaming response.'}, 'done': True}})
+                        return
 
                     async for line in response.body_iterator:
                         line = line.decode('utf-8', 'replace') if isinstance(line, bytes) else line

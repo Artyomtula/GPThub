@@ -610,6 +610,8 @@
 				</div>
 			{/if}
 
+			<hr class="border-gray-200 dark:border-gray-850/30 my-3" />
+
 			<div class=" my-2 text-sm font-medium">{$i18n.t('Chat')}</div>
 
 			<div>
@@ -1119,6 +1121,8 @@
 				</div>
 			</div>
 
+			<hr class="border-gray-200 dark:border-gray-850/30 my-3" />
+
 			<div class=" my-2 text-sm font-medium">{$i18n.t('Input')}</div>
 
 			<div>
@@ -1243,6 +1247,8 @@
 				</div>
 			</div>
 
+			<hr class="border-gray-200 dark:border-gray-850/30 my-3" />
+
 			<div class=" my-2 text-sm font-medium">{$i18n.t('Artifacts')}</div>
 
 			<div>
@@ -1302,6 +1308,8 @@
 				</div>
 			</div>
 
+			<hr class="border-gray-200 dark:border-gray-850/30 my-3" />
+
 			<div class=" my-2 text-sm font-medium">{$i18n.t('Voice')}</div>
 
 			<div>
@@ -1341,6 +1349,8 @@
 					</div>
 				</div>
 			</div>
+
+			<hr class="border-gray-200 dark:border-gray-850/30 my-3" />
 
 			<div class=" my-2 text-sm font-medium">{$i18n.t('File')}</div>
 

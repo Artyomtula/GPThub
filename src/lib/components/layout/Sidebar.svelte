@@ -65,7 +65,7 @@
 	import PinnedModelList from './Sidebar/PinnedModelList.svelte';
 	import Note from '../icons/Note.svelte';
 	import { fly } from 'svelte/transition';
-	import { cubicOut } from 'svelte/easing';
+	import { cubicOut, cubicIn } from 'svelte/easing';
 	import HotkeyHint from '../common/HotkeyHint.svelte';
 
 	const BREAKPOINT = 768;
@@ -454,11 +454,13 @@
 			showSidebar.subscribe(async (value) => {
 				localStorage.sidebar = value;
 
-				if (!$mobile) {
-					document.documentElement.style.setProperty(
-						'--sidebar-width',
-						value ? `${$sidebarWidth}px` : '0px'
-					);
+				if (value) {
+					// Always restore the correct sidebar width when opening —
+					// on desktop the var may have been set to '0px' when closed,
+					// which would make the mobile overlay invisible.
+					document.documentElement.style.setProperty('--sidebar-width', `${$sidebarWidth}px`);
+				} else if (!$mobile) {
+					document.documentElement.style.setProperty('--sidebar-width', '0px');
 				}
 
 				// nav element is not available on the first render
@@ -724,8 +726,13 @@
 					>
 						<div class=" self-center flex items-center justify-center size-9">
 							<img
-								src="{WEBUI_BASE_URL}/static/favicon.png"
-								class="sidebar-new-chat-icon size-6 rounded-full group-hover:hidden"
+								src="{WEBUI_BASE_URL}/static/assets/images/logo-black.png"
+								class="sidebar-new-chat-icon size-6 rounded-full group-hover:hidden dark:hidden"
+								alt=""
+							/>
+							<img
+								src="{WEBUI_BASE_URL}/static/assets/images/logo-white.png"
+								class="sidebar-new-chat-icon size-6 rounded-full group-hover:hidden hidden dark:block"
 								alt=""
 							/>
 
@@ -901,7 +908,7 @@
 			: ' transition-all duration-300 '} shrink-0 text-gray-900 dark:text-gray-200 text-sm fixed top-0 left-0 overflow-x-hidden
         "
 		in:fly={{ x: -$sidebarWidth, duration: 320, easing: cubicOut }}
-		out:fly={{ x: -$sidebarWidth, duration: 320, easing: cubicOut }}
+		out:fly={{ x: -$sidebarWidth, duration: 320, easing: cubicIn }}
 		data-state={$showSidebar}
 	>
 		<div
@@ -920,8 +927,14 @@
 				>
 					<img
 						crossorigin="anonymous"
-						src="{WEBUI_BASE_URL}/static/favicon.png"
-						class="sidebar-new-chat-icon size-6 rounded-full"
+						src="{WEBUI_BASE_URL}/static/assets/images/logo-black.png"
+						class="sidebar-new-chat-icon size-6 rounded-full dark:hidden"
+						alt=""
+					/>
+					<img
+						crossorigin="anonymous"
+						src="{WEBUI_BASE_URL}/static/assets/images/logo-white.png"
+						class="sidebar-new-chat-icon size-6 rounded-full hidden dark:block"
 						alt=""
 					/>
 				</a>
@@ -1123,7 +1136,7 @@
 						bind:open={showFolders}
 						className="px-2 mt-0.5"
 						name={$i18n.t('Folders')}
-						chevron={false}
+						chevron={true}
 						onAdd={() => {
 							showCreateFolderModal = true;
 						}}
@@ -1175,7 +1188,7 @@
 					id="sidebar-chats"
 					className="px-2 mt-0.5"
 					name={$i18n.t('Chats')}
-					chevron={false}
+					chevron={true}
 					on:change={async (e) => {
 						selectedFolder.set(null);
 					}}

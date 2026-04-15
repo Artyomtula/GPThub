@@ -28,7 +28,7 @@
 			</Tooltip>
 
 			{#if idx < followUps.length - 1}
-				<hr class="border-gray-50 dark:border-gray-850/30" />
+				<hr class="border-gray-100 dark:border-gray-850/30" />
 			{/if}
 		{/each}
 	</div>

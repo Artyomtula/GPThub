@@ -225,6 +225,7 @@
 								class="flex w-full justify-between gap-2 items-center px-3 py-1.5 text-sm cursor-pointer rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50"
 								on:click={() => {
 									webSearchEnabled = !webSearchEnabled;
+									if (webSearchEnabled) imageGenerationEnabled = false;
 								}}
 							>
 								<div class="flex-1 truncate">
@@ -259,6 +260,7 @@
 								class="flex w-full justify-between gap-2 items-center px-3 py-1.5 text-sm cursor-pointer rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50"
 								on:click={() => {
 									deepResearchEnabled = !deepResearchEnabled;
+									if (deepResearchEnabled) imageGenerationEnabled = false;
 								}}
 							>
 								<div class="flex-1 truncate">
@@ -289,6 +291,12 @@
 								class="flex w-full justify-between gap-2 items-center px-3 py-1.5 text-sm cursor-pointer rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50"
 								on:click={() => {
 									imageGenerationEnabled = !imageGenerationEnabled;
+									if (imageGenerationEnabled) {
+										webSearchEnabled = false;
+										deepResearchEnabled = false;
+										codeInterpreterEnabled = false;
+										presentationEnabled = false;
+									}
 								}}
 							>
 								<div class="flex-1 truncate">
@@ -324,6 +332,7 @@
 									: $i18n.t('Enable Code Interpreter')}
 								on:click={() => {
 									codeInterpreterEnabled = !codeInterpreterEnabled;
+									if (codeInterpreterEnabled) imageGenerationEnabled = false;
 								}}
 							>
 								<div class="flex-1 truncate">
@@ -356,6 +365,7 @@
 								aria-pressed={presentationEnabled}
 								on:click={() => {
 									presentationEnabled = !presentationEnabled;
+									if (presentationEnabled) imageGenerationEnabled = false;
 								}}
 							>
 								<div class="flex-1 truncate">

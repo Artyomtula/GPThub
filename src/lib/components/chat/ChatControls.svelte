@@ -146,15 +146,60 @@
 	};
 
 	export const openPane = () => {
+		const container = document.getElementById('chat-container');
+		let targetSize;
 		if (parseInt(localStorage?.chatControlsSize)) {
-			const container = document.getElementById('chat-container');
-			let size = Math.floor(
+			targetSize = Math.floor(
 				(parseInt(localStorage?.chatControlsSize) / container.clientWidth) * 100
 			);
-			pane.resize(size);
 		} else {
-			pane.resize(minSize);
+			targetSize = minSize;
 		}
+
+		const startTime = performance.now();
+		const duration = 200;
+
+		const animate = (now: number) => {
+			const elapsed = now - startTime;
+			const progress = Math.min(elapsed / duration, 1);
+			const eased = 1 - (1 - progress) * (1 - progress);
+			const size = targetSize * eased;
+
+			if (progress < 1) {
+				pane.resize(Math.max(size, 0.1));
+				requestAnimationFrame(animate);
+			} else {
+				pane.resize(targetSize);
+			}
+		};
+
+		requestAnimationFrame(animate);
+	};
+
+	export const closePane = () => {
+		const container = document.getElementById('chat-container');
+		const storedSize = parseInt(localStorage?.chatControlsSize);
+		let currentSize = storedSize ? Math.floor((storedSize / container.clientWidth) * 100) : minSize;
+
+		const startTime = performance.now();
+		const duration = 200;
+		const startSize = currentSize;
+
+		const animate = (now: number) => {
+			const elapsed = now - startTime;
+			const progress = Math.min(elapsed / duration, 1);
+			const eased = 1 - (1 - progress) * (1 - progress);
+			const size = startSize * (1 - eased);
+
+			if (progress < 1) {
+				pane.resize(Math.max(size, 0.1));
+				requestAnimationFrame(animate);
+			} else {
+				pane.collapse();
+			}
+		};
+
+		requestAnimationFrame(animate);
 	};
 
 	const handleMediaQuery = async (e) => {
@@ -402,11 +447,7 @@
 		class="z-10 bg-white dark:bg-gray-850 overflow-hidden"
 	>
 		{#if $showControls}
-			<div
-				class="flex max-h-full min-h-full"
-				in:fly={{ x: 360, duration: 200, delay: 20 }}
-				out:fly={{ x: 360, duration: 200 }}
-			>
+			<div class="flex max-h-full min-h-full">
 				<div
 					class="w-full {specialPanel && !$showCallOverlay
 						? ' '

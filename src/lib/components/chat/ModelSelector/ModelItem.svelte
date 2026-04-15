@@ -23,6 +23,7 @@
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
 	import BookOpen from '$lib/components/icons/BookOpen.svelte';
+	import ChatBubbleOval from '$lib/components/icons/ChatBubbleOval.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -111,27 +112,22 @@
 		<div class="flex items-center gap-2">
 			{#if !isAgent}
 				<div class="flex items-center min-w-fit">
-					<Tooltip
-						content={$user?.role === 'admin' ? (item?.value ?? '') : ''}
-						placement="top-start"
+					<div
+						class="size-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0"
 					>
-						<div
-							class="size-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0"
-						>
-							{#if getCapabilityIcon(item.model) === 'image'}
-								<Photo className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
-							{:else if getCapabilityIcon(item.model) === 'vision'}
-								<Eye className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
-							{:else if getCapabilityIcon(item.model) === 'code'}
-								<CodeBracket
-									className="size-3 text-gray-600 dark:text-gray-300"
-									strokeWidth="1.8"
-								/>
-							{:else}
-								<Sparkles className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
-							{/if}
-						</div>
-					</Tooltip>
+						{#if getCapabilityIcon(item.model) === 'image'}
+							<Photo className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+						{:else if getCapabilityIcon(item.model) === 'vision'}
+							<Eye className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+						{:else if getCapabilityIcon(item.model) === 'code'}
+							<CodeBracket className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+						{:else}
+							<ChatBubbleOval
+								className="size-3 text-gray-600 dark:text-gray-300"
+								strokeWidth="1.8"
+							/>
+						{/if}
+					</div>
 				</div>
 			{:else}
 				<div
@@ -148,7 +144,7 @@
 					{:else if getCapabilityIcon(item.model) === 'research'}
 						<BookOpen className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
 					{:else}
-						<Sparkles className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
+						<ChatBubbleOval className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
 					{/if}
 				</div>
 			{/if}
@@ -157,9 +153,7 @@
 				{#if isAgent}
 					<div class="line-clamp-1">{item.label}</div>
 				{:else}
-					<Tooltip content={$user?.role === 'admin' ? item.value : ''} placement="top-start">
-						<div class="line-clamp-1">{item.label}</div>
-					</Tooltip>
+					<div class="line-clamp-1">{item.label}</div>
 				{/if}
 			</div>
 

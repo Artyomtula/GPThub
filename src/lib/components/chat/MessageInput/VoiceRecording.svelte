@@ -429,15 +429,23 @@
 		dir="rtl"
 	>
 		<div
-			class="flex items-center gap-0.5 h-6 w-full max-w-full overflow-hidden overflow-x-hidden flex-wrap"
+			class="flex items-center gap-[3px] h-6 w-full max-w-full overflow-hidden overflow-x-hidden flex-wrap"
 		>
 			{#each visualizerData.slice().reverse() as rms}
 				<div class="flex items-center h-full">
 					<div
-						class="w-[2px] shrink-0 inline-block h-full"
-						style="height: {Math.min(100, Math.max(14, rms * 100))}%; background-color: {loading
+						class="w-[3px] h-full shrink-0 inline-block rounded-full"
+						style="transform: scaleY({Math.min(
+							1,
+							Math.max(0.1, rms * 1.2)
+						)}); transform-origin: center; will-change: transform, opacity; background-color: {loading
 							? 'rgb(107 114 128)'
-							: 'hsl(var(--gpthub-accent-hue, 250) 65% 58%)'};"
+							: 'hsl(var(--gpthub-accent-hue, 250) 65% 58%)'}; opacity: {loading
+							? 0.5
+							: Math.max(
+									0.4,
+									Math.min(1, rms * 2)
+								)}; transition: transform 0.08s ease-out, opacity 0.08s ease-out;"
 					/>
 				</div>
 			{/each}

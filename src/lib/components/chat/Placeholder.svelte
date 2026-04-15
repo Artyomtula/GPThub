@@ -30,12 +30,19 @@
 	import CodeBracket from '$lib/components/icons/CodeBracket.svelte';
 	import Photo from '$lib/components/icons/Photo.svelte';
 	import Eye from '$lib/components/icons/Eye.svelte';
+	import ChatBubbleOval from '$lib/components/icons/ChatBubbleOval.svelte';
+	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
 	import MessageInput from './MessageInput.svelte';
 	import FolderPlaceholder from './Placeholder/FolderPlaceholder.svelte';
 	import FolderTitle from './Placeholder/FolderTitle.svelte';
 
 	const getCapabilityIcon = (model: any): string => {
-		const text = `${(model?.id || '').toLowerCase()} ${(model?.name || '').toLowerCase()}`;
+		const id = (model?.id || '').toLowerCase();
+		if (id === 'gpthub:auto') return 'auto';
+		if (id === 'gpthub:code') return 'code';
+		if (id === 'gpthub:vision') return 'vision';
+		if (id === 'gpthub:web' || id === 'gpthub:research') return 'web';
+		const text = `${id} ${(model?.name || '').toLowerCase()}`;
 		const caps = model?.info?.meta?.capabilities || {};
 		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text))
 			return 'image';
@@ -150,36 +157,38 @@
 													strokeWidth="1.6"
 												/>
 											</div>
-										{:else if model?.id?.startsWith('gpthub:')}
-											<div
-												class="size-9 @sm:size-10 rounded-full bg-white dark:bg-gray-750 border-[1px] border-gray-100 dark:border-gray-700 flex items-center justify-center"
-											>
-												<UserCircle
-													className="size-5 text-gray-500 dark:text-gray-400"
-													strokeWidth="1.6"
-												/>
-											</div>
 										{:else}
+											{@const capIcon = getCapabilityIcon(model)}
 											<div
 												class="size-9 @sm:size-10 rounded-full bg-white dark:bg-gray-750 border-[1px] border-gray-100 dark:border-gray-700 flex items-center justify-center"
 											>
-												{#if getCapabilityIcon(model) === 'image'}
+												{#if capIcon === 'auto'}
+													<Sparkles
+														className="size-5 text-gray-500 dark:text-gray-400"
+														strokeWidth="1.6"
+													/>
+												{:else if capIcon === 'image'}
 													<Photo
 														className="size-5 text-gray-500 dark:text-gray-400"
 														strokeWidth="1.6"
 													/>
-												{:else if getCapabilityIcon(model) === 'vision'}
+												{:else if capIcon === 'vision'}
 													<Eye
 														className="size-5 text-gray-500 dark:text-gray-400"
 														strokeWidth="1.6"
 													/>
-												{:else if getCapabilityIcon(model) === 'code'}
+												{:else if capIcon === 'code'}
 													<CodeBracket
 														className="size-5 text-gray-500 dark:text-gray-400"
 														strokeWidth="1.6"
 													/>
+												{:else if capIcon === 'web'}
+													<GlobeAlt
+														className="size-5 text-gray-500 dark:text-gray-400"
+														strokeWidth="1.6"
+													/>
 												{:else}
-													<Sparkles
+													<ChatBubbleOval
 														className="size-5 text-gray-500 dark:text-gray-400"
 														strokeWidth="1.6"
 													/>
@@ -199,15 +208,9 @@
 						{#if modelSelectionMode === 'auto'}
 							<span class="line-clamp-1">Auto Mode</span>
 						{:else if models[selectedModelIdx]?.name}
-							<Tooltip
-								content={models[selectedModelIdx]?.name}
-								placement="top"
-								className=" flex items-center "
-							>
-								<span class="line-clamp-1">
-									{models[selectedModelIdx]?.name}
-								</span>
-							</Tooltip>
+							<span class="line-clamp-1">
+								{models[selectedModelIdx]?.name}
+							</span>
 						{:else}
 							{$i18n.t('Hello, {{name}}', { name: $user?.name })}
 						{/if}

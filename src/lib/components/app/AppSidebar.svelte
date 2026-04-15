@@ -30,8 +30,14 @@
 				}}
 			>
 				<img
-					src="{WEBUI_BASE_URL}/static/splash.png"
-					class="size-11 dark:invert p-0.5"
+					src="{WEBUI_BASE_URL}/static/assets/images/logo-black.png"
+					class="size-11 p-0.5 dark:hidden"
+					alt="logo"
+					draggable="false"
+				/>
+				<img
+					src="{WEBUI_BASE_URL}/static/assets/images/logo-white.png"
+					class="size-11 p-0.5 hidden dark:block"
 					alt="logo"
 					draggable="false"
 				/>
@@ -55,8 +61,14 @@
 			}}
 		>
 			<img
-				src="{WEBUI_BASE_URL}/static/favicon.png"
-				class="size-10 {selected === '' ? 'rounded-2xl' : 'rounded-full'}"
+				src="{WEBUI_BASE_URL}/static/assets/images/logo-black.png"
+				class="size-10 {selected === '' ? 'rounded-2xl' : 'rounded-full'} dark:hidden"
+				alt="logo"
+				draggable="false"
+			/>
+			<img
+				src="{WEBUI_BASE_URL}/static/assets/images/logo-white.png"
+				class="size-10 {selected === '' ? 'rounded-2xl' : 'rounded-full'} hidden dark:block"
 				alt="logo"
 				draggable="false"
 			/>
