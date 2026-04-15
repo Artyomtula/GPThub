@@ -1161,7 +1161,7 @@ ENABLE_PASSWORD_AUTH = os.environ.get('ENABLE_PASSWORD_AUTH', 'True').lower() ==
 DEFAULT_LOCALE = PersistentConfig(
     'DEFAULT_LOCALE',
     'ui.default_locale',
-    os.environ.get('DEFAULT_LOCALE', ''),
+    os.environ.get('DEFAULT_LOCALE', 'ru-RU'),
 )
 
 DEFAULT_MODELS = PersistentConfig('DEFAULT_MODELS', 'ui.default_models', os.environ.get('DEFAULT_MODELS', None))

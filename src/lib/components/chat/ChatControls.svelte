@@ -311,7 +311,7 @@
 			<div class="h-[100dvh] flex flex-col">
 				{#if $showCallOverlay}
 					<div
-						class="h-full max-h-[100dvh] bg-white text-gray-700 dark:bg-black dark:text-gray-300 flex justify-center"
+						class="h-full max-h-[100dvh] bg-gray-950 text-gray-300 flex justify-center"
 					>
 						<CallOverlay
 							bind:files
@@ -458,7 +458,7 @@
 					id="controls-container"
 				>
 					{#if $showCallOverlay}
-						<div class="w-full h-full flex justify-center">
+						<div class="w-full h-full flex justify-center bg-gray-950 text-gray-300 rounded-2xl overflow-hidden">
 							<CallOverlay
 								bind:files
 								{submitPrompt}
