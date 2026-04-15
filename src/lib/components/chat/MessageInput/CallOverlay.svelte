@@ -157,7 +157,7 @@
 		const res = await transcribeAudio(
 			localStorage.token,
 			file,
-			$settings?.audio?.stt?.language
+			$settings?.audio?.stt?.language || 'ru'
 		).catch((error) => {
 			toast.error(`${error}`);
 			return null;
@@ -386,48 +386,18 @@
 						clearInterval(getVoicesLoop);
 
 						const voiceId = getVoiceId();
-						let voice = voices?.filter((v) => v.voiceURI === voiceId)?.at(0) ?? undefined;
-
-						// No exact match — detect the language from the content itself so that
-						// a Russian response always gets a Russian voice regardless of the UI
-						// locale, and an English response always gets an English voice.
-						// Prefer local/offline voices: network voices (e.g. "Google US English")
-						// are prone to stutter, clipping, and silent failures on slow connections.
-						if (!voice) {
-							// Only Russian and English are supported in voice mode
-							const contentLang = /[\u0400-\u04FF]/.test(content) ? 'ru' : 'en';
-
-							const matchingVoices = voices.filter((v) =>
-								v.lang.toLowerCase().startsWith(contentLang)
-							);
-
-							voice =
-								matchingVoices.find((v) => v.localService) ??
-								matchingVoices[0] ??
-								voices.find(
-									(v) => v.localService && (v.lang.startsWith('en') || v.lang.startsWith('ru'))
-								) ??
-								voices.find((v) => v.lang.startsWith('en') || v.lang.startsWith('ru')) ??
-								voices[0];
-						}
+						const voice = voices?.filter((v) => v.voiceURI === voiceId)?.at(0) ?? undefined;
 
 						currentUtterance = new SpeechSynthesisUtterance(content);
 						currentUtterance.rate = $settings.audio?.tts?.playbackRate ?? 1;
+						currentUtterance.lang = $i18n.resolvedLanguage ?? 'ru-RU';
 
 						if (voice) {
 							currentUtterance.voice = voice;
-							currentUtterance.lang = voice.lang;
 						}
-
-						// Chrome bug: speechSynthesis silently pauses after ~15 s.
-						// Poll and resume to keep long responses playing without cuts.
-						const resumeTimer = setInterval(() => {
-							if (speechSynthesis.paused) speechSynthesis.resume();
-						}, 5000);
 
 						speechSynthesis.speak(currentUtterance);
 						currentUtterance.onend = async (e) => {
-							clearInterval(resumeTimer);
 							await new Promise((r) => setTimeout(r, 200));
 							resolve(e);
 						};
@@ -446,12 +416,17 @@
 
 				if (audioElement) {
 					audioElement.src = audio.src;
-					audioElement.muted = false;
+					audioElement.muted = true;
 					audioElement.playbackRate = $settings.audio?.tts?.playbackRate ?? 1;
 
-					audioElement.play().catch((error) => {
-						console.error(error);
-					});
+					audioElement
+						.play()
+						.then(() => {
+							audioElement.muted = false;
+						})
+						.catch((error) => {
+							console.error(error);
+						});
 
 					audioElement.onended = async (e) => {
 						await new Promise((r) => setTimeout(r, 100));
@@ -543,6 +518,10 @@
 	let messages = {};
 
 	const monitorAndPlayAudio = async (id, signal) => {
+		// Clear any speech queued by other code (e.g. voice ack) so it
+		// doesn't play with the wrong voice/language settings.
+		speechSynthesis.cancel();
+
 		while (!signal.aborted) {
 			if (messages[id] && messages[id].length > 0) {
 				// Retrieve the next content string from the queue
@@ -747,13 +726,42 @@
 						{emoji}
 					</div>
 				{:else if loading || assistantSpeaking}
-					<div class="voice-wave voice-wave-sm">
-						<span style="--i:0"></span>
-						<span style="--i:1"></span>
-						<span style="--i:2"></span>
-						<span style="--i:3"></span>
-						<span style="--i:4"></span>
-					</div>
+					<svg
+						class="size-12 text-gray-900 dark:text-gray-400"
+						viewBox="0 0 24 24"
+						fill="currentColor"
+						xmlns="http://www.w3.org/2000/svg"
+						><style>
+							.spinner_qM83 {
+								animation: spinner_8HQG 1.05s infinite;
+							}
+							.spinner_oXPr {
+								animation-delay: 0.1s;
+							}
+							.spinner_ZTLf {
+								animation-delay: 0.2s;
+							}
+							@keyframes spinner_8HQG {
+								0%,
+								57.14% {
+									animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1);
+									transform: translate(0);
+								}
+								28.57% {
+									animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33);
+									transform: translateY(-6px);
+								}
+								100% {
+									transform: translate(0);
+								}
+							}
+						</style><circle class="spinner_qM83" cx="4" cy="12" r="3" /><circle
+							class="spinner_qM83 spinner_oXPr"
+							cx="12"
+							cy="12"
+							r="3"
+						/><circle class="spinner_qM83 spinner_ZTLf" cx="20" cy="12" r="3" /></svg
+					>
 				{:else}
 					<div
 						class=" {rmsLevel * 100 > 4
@@ -794,15 +802,42 @@
 							{emoji}
 						</div>
 					{:else if loading || assistantSpeaking}
-						<div class="voice-wave voice-wave-lg">
-							<span style="--i:0"></span>
-							<span style="--i:1"></span>
-							<span style="--i:2"></span>
-							<span style="--i:3"></span>
-							<span style="--i:4"></span>
-							<span style="--i:5"></span>
-							<span style="--i:6"></span>
-						</div>
+						<svg
+							class="size-44 text-gray-900 dark:text-gray-400"
+							viewBox="0 0 24 24"
+							fill="currentColor"
+							xmlns="http://www.w3.org/2000/svg"
+							><style>
+								.spinner_qM83 {
+									animation: spinner_8HQG 1.05s infinite;
+								}
+								.spinner_oXPr {
+									animation-delay: 0.1s;
+								}
+								.spinner_ZTLf {
+									animation-delay: 0.2s;
+								}
+								@keyframes spinner_8HQG {
+									0%,
+									57.14% {
+										animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1);
+										transform: translate(0);
+									}
+									28.57% {
+										animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33);
+										transform: translateY(-6px);
+									}
+									100% {
+										transform: translate(0);
+									}
+								}
+							</style><circle class="spinner_qM83" cx="4" cy="12" r="3" /><circle
+								class="spinner_qM83 spinner_oXPr"
+								cx="12"
+								cy="12"
+								r="3"
+							/><circle class="spinner_qM83 spinner_ZTLf" cx="20" cy="12" r="3" /></svg
+						>
 					{:else}
 						<div
 							class=" {rmsLevel * 100 > 4
@@ -964,60 +999,3 @@
 		</div>
 	</div>
 {/if}
-
-<style>
-	/* Voice wave animation bars */
-	.voice-wave {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 3px;
-	}
-
-	.voice-wave span {
-		display: inline-block;
-		border-radius: 9999px;
-		background: currentColor;
-		will-change: transform, opacity;
-		transform-origin: center;
-		animation: voice-wave-bar 1.2s ease-in-out calc(var(--i) * 0.15s) infinite;
-	}
-
-	/* Small variant (camera mode) */
-	.voice-wave-sm {
-		height: 3rem;
-		color: rgb(107 114 128);
-	}
-	:global(.dark) .voice-wave-sm {
-		color: rgb(156 163 175);
-	}
-	.voice-wave-sm span {
-		width: 4px;
-		height: 12px;
-	}
-
-	/* Large variant (full-screen mode) */
-	.voice-wave-lg {
-		height: 11rem;
-		color: rgb(107 114 128);
-	}
-	:global(.dark) .voice-wave-lg {
-		color: rgb(156 163 175);
-	}
-	.voice-wave-lg span {
-		width: 8px;
-		height: 24px;
-	}
-
-	@keyframes voice-wave-bar {
-		0%,
-		100% {
-			transform: scaleY(1);
-			opacity: 0.5;
-		}
-		50% {
-			transform: scaleY(2.8);
-			opacity: 1;
-		}
-	}
-</style>

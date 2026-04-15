@@ -768,6 +768,12 @@
 	};
 
 	onMount(async () => {
+		// Pre-warm speechSynthesis voices so they're ready when voice mode opens
+		if ('speechSynthesis' in window) {
+			speechSynthesis.getVoices();
+			speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+		}
+
 		window.addEventListener('message', windowMessageEventHandler);
 
 		let touchstartY = 0;

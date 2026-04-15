@@ -110,12 +110,12 @@
 
 	<div class="shrink-0 self-top -translate-y-0.5">
 		<img
-			src="{WEBUI_BASE_URL}/static/assets/images/logo-black.png"
+			src="{WEBUI_BASE_URL}/static/favicon.png"
 			alt="logo"
 			class="size-6 rounded-full dark:hidden"
 		/>
 		<img
-			src="{WEBUI_BASE_URL}/static/assets/images/logo-white.png"
+			src="{WEBUI_BASE_URL}/static/favicon-dark.png"
 			alt="logo"
 			class="size-6 rounded-full hidden dark:block"
 		/>

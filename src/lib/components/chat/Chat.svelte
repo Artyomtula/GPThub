@@ -551,7 +551,9 @@
 					const ackContent = data?.content;
 					if (ackContent && typeof ackContent === 'string') {
 						await insertVoiceAckMessage(message, ackContent);
-						await speakShortText(ackContent);
+						if (!$showCallOverlay) {
+							await speakShortText(ackContent);
+						}
 					}
 				} else if (type === 'chat:message:favorite') {
 					// Update message favorite status
@@ -1242,8 +1244,9 @@
 					selectedModels.length === 0 ||
 					(selectedModels.length === 1 && selectedModels[0] === '')
 				) {
-					// Only fall back to first available model if default models didn't resolve
-					selectedModels = [availableModels?.at(0) ?? ''];
+					// Prefer Auto Mode if available, otherwise fall back to first available model
+					const autoModel = availableModels.includes('gpthub:auto') ? 'gpthub:auto' : null;
+					selectedModels = [autoModel ?? availableModels?.at(0) ?? ''];
 				}
 			} else {
 				selectedModels = [''];
