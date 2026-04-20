@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import time
@@ -41,11 +42,53 @@ CAPABILITY_ORDER: tuple[str, ...] = (
 )
 
 
-def _env_bool(name: str, default: bool) -> bool:
+def env_bool(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
         return default
     return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+# Keep backward-compat alias used inside this file.
+_env_bool = env_bool
+
+
+def env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except Exception:
+        return default
+
+
+def env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except Exception:
+        return default
+
+
+def extract_json_object(text: str) -> dict | None:
+    """Try to parse a JSON object from *text*, tolerating surrounding noise."""
+    if not text:
+        return None
+    text = text.strip()
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+
+    start = text.find('{')
+    end = text.rfind('}')
+    if start == -1 or end == -1 or end <= start:
+        return None
+    candidate = text[start: end + 1]
+    try:
+        parsed = json.loads(candidate)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        return None
 
 
 def virtual_models_enabled() -> bool:

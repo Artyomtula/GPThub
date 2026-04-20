@@ -55,22 +55,7 @@
 	import ChatBubbleOval from '$lib/components/icons/ChatBubbleOval.svelte';
 
 	import DeleteConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
-
-	const getCapabilityIcon = (model: any): string => {
-		const id = (model?.id || '').toLowerCase();
-		if (id === 'gpthub:auto') return 'auto';
-		if (id === 'gpthub:code') return 'code';
-		if (id === 'gpthub:vision') return 'vision';
-		if (id === 'gpthub:web') return 'web';
-		if (id === 'gpthub:research') return 'web';
-		const text = `${id} ${(model?.name || '').toLowerCase()}`;
-		const caps = model?.info?.meta?.capabilities || {};
-		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text))
-			return 'image';
-		if (caps.vision || /\b(vision|vl\b|multimodal)\b/.test(text)) return 'vision';
-		if (caps.code || /\b(coder|code|program)\b/.test(text)) return 'code';
-		return 'text';
-	};
+	import { getCapabilityIcon } from '$lib/utils/gpthub';
 
 	import Error from './Error.svelte';
 	import Citations from './Citations.svelte';
@@ -675,7 +660,18 @@
 
 		<div class="flex-auto w-0 pl-1 relative">
 			<Name>
-				<Tooltip content={model?.name ?? message.model} placement="top-start">
+				<Tooltip
+					content={(() => {
+						const name = model?.name ?? message.model;
+						const re = message.routingExplanation;
+						if (!re || !re.reason_label) return name;
+						const parts = [name];
+						if (re.reason_label) parts.push(re.reason_label);
+						if (re.resolved_capability_label) parts.push(re.resolved_capability_label);
+						return parts.join(' · ');
+					})()}
+					placement="top-start"
+				>
 					<span id="response-message-model-name" class="line-clamp-1 text-black dark:text-white">
 						{model?.name ?? message.model}
 					</span>

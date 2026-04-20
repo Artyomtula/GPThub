@@ -35,21 +35,7 @@
 	import MessageInput from './MessageInput.svelte';
 	import FolderPlaceholder from './Placeholder/FolderPlaceholder.svelte';
 	import FolderTitle from './Placeholder/FolderTitle.svelte';
-
-	const getCapabilityIcon = (model: any): string => {
-		const id = (model?.id || '').toLowerCase();
-		if (id === 'gpthub:auto') return 'auto';
-		if (id === 'gpthub:code') return 'code';
-		if (id === 'gpthub:vision') return 'vision';
-		if (id === 'gpthub:web' || id === 'gpthub:research') return 'web';
-		const text = `${id} ${(model?.name || '').toLowerCase()}`;
-		const caps = model?.info?.meta?.capabilities || {};
-		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text))
-			return 'image';
-		if (caps.vision || /\b(vision|vl\b|multimodal)\b/.test(text)) return 'vision';
-		if (caps.code || /\b(coder|code|program)\b/.test(text)) return 'code';
-		return 'text';
-	};
+	import { getCapabilityIcon } from '$lib/utils/gpthub';
 
 	const i18n = getContext('i18n');
 

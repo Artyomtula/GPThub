@@ -34,9 +34,9 @@ IF "%WEBUI_SECRET_KEY% %WEBUI_JWT_SECRET_KEY%" == " " (
 
     IF NOT EXIST "%KEY_FILE%" (
         echo Generating WEBUI_SECRET_KEY
-        :: Generate a random value to use as a WEBUI_SECRET_KEY in case the user didn't provide one
-        SET /p WEBUI_SECRET_KEY=<nul
-        FOR /L %%i IN (1,1,12) DO SET /p WEBUI_SECRET_KEY=<!random!>>%KEY_FILE%
+        :: Generate a cryptographically strong random key (32 bytes, base64)
+        FOR /F "usebackq delims=" %%k IN (`powershell -NoProfile -Command "[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))"`) DO SET "WEBUI_SECRET_KEY=%%k"
+        echo !WEBUI_SECRET_KEY!>"%KEY_FILE%"
         echo WEBUI_SECRET_KEY generated
     )
 

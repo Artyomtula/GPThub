@@ -33,22 +33,7 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
 	import ModelItem from './ModelItem.svelte';
-
-	const getCapabilityIcon = (model: any): string => {
-		const id = (model?.id || '').toLowerCase();
-		if (id === 'gpthub:auto') return 'auto';
-		if (id === 'gpthub:code') return 'code';
-		if (id === 'gpthub:vision') return 'vision';
-		if (id === 'gpthub:web') return 'web';
-		if (id === 'gpthub:research') return 'web';
-		const text = `${id} ${(model?.name || '').toLowerCase()}`;
-		const caps = model?.info?.meta?.capabilities || {};
-		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text))
-			return 'image';
-		if (caps.vision || /\b(vision|vl\b|multimodal)\b/.test(text)) return 'vision';
-		if (caps.code || /\b(coder|code|program)\b/.test(text)) return 'code';
-		return 'text';
-	};
+	import { getCapabilityIcon, VIRTUAL_MODEL_PREFIX, VIRTUAL_MODEL_IDS } from '$lib/utils/gpthub';
 
 	const i18n = getContext('i18n');
 
@@ -424,11 +409,11 @@
 	$: agentItems = filteredItems.filter(
 		(item) =>
 			typeof item.value === 'string' &&
-			item.value.startsWith('gpthub:') &&
-			item.value !== 'gpthub:auto'
+			item.value.startsWith(VIRTUAL_MODEL_PREFIX) &&
+			item.value !== VIRTUAL_MODEL_IDS.AUTO
 	);
 	$: regularItems = filteredItems.filter(
-		(item) => !(typeof item.value === 'string' && item.value.startsWith('gpthub:'))
+		(item) => !(typeof item.value === 'string' && item.value.startsWith(VIRTUAL_MODEL_PREFIX))
 	);
 
 	// Display order: agents (excluding gpthub:auto) then regular models.
@@ -498,7 +483,7 @@
 						>
 							<Sparkles className="size-3 text-gray-600 dark:text-gray-300" strokeWidth="1.8" />
 						</div>
-					{:else if value.startsWith('gpthub:')}
+					{:else if value.startsWith(VIRTUAL_MODEL_PREFIX)}
 						{@const agentIcon = getCapabilityIcon(selectedModel?.model)}
 						<div
 							class="size-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0"

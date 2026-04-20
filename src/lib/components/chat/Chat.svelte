@@ -108,6 +108,7 @@
 	import Sidebar from '../icons/Sidebar.svelte';
 	import Image from '../common/Image.svelte';
 	import { getBanners } from '$lib/apis/configs';
+	import { MODEL_SELECT_EVENT, VIRTUAL_MODEL_IDS } from '$lib/utils/gpthub';
 
 	export let chatIdProp = '';
 
@@ -760,7 +761,7 @@
 		console.log('mounted');
 
 		window.addEventListener('message', onMessageHandler);
-		window.addEventListener('gpthub:model-select', onModelSelectFromChat as EventListener);
+		window.addEventListener(MODEL_SELECT_EVENT, onModelSelectFromChat as EventListener);
 		$socket?.on('events', chatEventHandler);
 
 		$audioQueue?.destroy();
@@ -878,7 +879,7 @@
 				showControlsSubscribe();
 				selectedFolderSubscribe();
 				window.removeEventListener('message', onMessageHandler);
-				window.removeEventListener('gpthub:model-select', onModelSelectFromChat as EventListener);
+				window.removeEventListener(MODEL_SELECT_EVENT, onModelSelectFromChat as EventListener);
 				$socket?.off('events', chatEventHandler);
 				audioQueueInstance?.destroy();
 				audioQueue.set(null);
@@ -1245,7 +1246,9 @@
 					(selectedModels.length === 1 && selectedModels[0] === '')
 				) {
 					// Prefer Auto Mode if available, otherwise fall back to first available model
-					const autoModel = availableModels.includes('gpthub:auto') ? 'gpthub:auto' : null;
+					const autoModel = availableModels.includes(VIRTUAL_MODEL_IDS.AUTO)
+						? VIRTUAL_MODEL_IDS.AUTO
+						: null;
 					selectedModels = [autoModel ?? availableModels?.at(0) ?? ''];
 				}
 			} else {
@@ -2225,6 +2228,11 @@
 			mode?: 'auto' | 'manual';
 			resolved_model_id?: string;
 			display_model_id?: string;
+			routing_explanation?: {
+				reason_label?: string;
+				resolved_model_name?: string;
+				resolved_capability_label?: string;
+			};
 		},
 		responseMessageId?: string
 	) => {
@@ -2257,10 +2265,12 @@
 		selectedModels = [displayModel ? displayModel.id : resolvedModelId];
 
 		if (responseMessageId && history.messages?.[responseMessageId]) {
+			const routingExplanation = selectionEffective.routing_explanation;
 			history.messages[responseMessageId] = {
 				...history.messages[responseMessageId],
 				model: resolvedModelId,
-				modelName: resolvedModel.name ?? resolvedModelId
+				modelName: resolvedModel.name ?? resolvedModelId,
+				...(routingExplanation ? { routingExplanation } : {})
 			};
 			history = history;
 		}
