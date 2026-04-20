@@ -20,6 +20,7 @@
 	import MentionToken from './MarkdownInlineTokens/MentionToken.svelte';
 	import NoteLinkToken from './MarkdownInlineTokens/NoteLinkToken.svelte';
 	import SourceToken from './SourceToken.svelte';
+	import { isModelSelectUrl, MODEL_SELECT_EVENT, GPTHUB_SCHEME } from '$lib/utils/gpthub';
 
 	export let id: string;
 	export let done = true;
@@ -52,14 +53,14 @@
 		// Fast path for custom in-app model switch links.
 		// Some browsers may attempt to open unknown schemes immediately,
 		// so intercept this before generic URL parsing.
-		if (href?.startsWith('gpthub://select-model')) {
+		if (isModelSelectUrl(href)) {
 			e.preventDefault();
 			try {
 				const url = new URL(href);
 				const modelId = url.searchParams.get('model');
 				if (modelId) {
 					window.dispatchEvent(
-						new CustomEvent('gpthub:model-select', {
+						new CustomEvent(MODEL_SELECT_EVENT, {
 							detail: { modelId }
 						})
 					);
@@ -69,7 +70,7 @@
 				const modelId = match?.[1] ? decodeURIComponent(match[1]) : null;
 				if (modelId) {
 					window.dispatchEvent(
-						new CustomEvent('gpthub:model-select', {
+						new CustomEvent(MODEL_SELECT_EVENT, {
 							detail: { modelId }
 						})
 					);
@@ -85,14 +86,15 @@
 			const isSameOriginSelectModel =
 				url.origin === window.location.origin && url.pathname === '/select-model';
 			const isCustomSchemeSelectModel =
-				url.protocol === 'gpthub:' && (url.hostname === 'select-model' || url.pathname === '/select-model');
+				url.protocol === GPTHUB_SCHEME &&
+				(url.hostname === 'select-model' || url.pathname === '/select-model');
 
 			if (isSameOriginSelectModel || isCustomSchemeSelectModel) {
 				const modelId = url.searchParams.get('model');
 				if (modelId) {
 					e.preventDefault();
 					window.dispatchEvent(
-						new CustomEvent('gpthub:model-select', {
+						new CustomEvent(MODEL_SELECT_EVENT, {
 							detail: { modelId }
 						})
 					);

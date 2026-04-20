@@ -24,6 +24,7 @@
 	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
 	import BookOpen from '$lib/components/icons/BookOpen.svelte';
 	import ChatBubbleOval from '$lib/components/icons/ChatBubbleOval.svelte';
+	import { getCapabilityIcon } from '$lib/utils/gpthub';
 
 	const i18n = getContext('i18n');
 
@@ -56,23 +57,6 @@
 
 	const isLocalModel = (model: any) =>
 		model?.owned_by === 'ollama' || model?.connection_type === 'local';
-
-	const getCapabilityIcon = (model: any): string => {
-		const id = (model?.id || '').toLowerCase();
-		// Virtual GPTHub agents — map by capability
-		if (id === 'gpthub:auto') return 'auto';
-		if (id === 'gpthub:code') return 'code';
-		if (id === 'gpthub:vision') return 'vision';
-		if (id === 'gpthub:web') return 'web';
-		if (id === 'gpthub:research') return 'web';
-		const text = `${id} ${(model?.name || '').toLowerCase()}`;
-		const caps = model?.info?.meta?.capabilities || {};
-		if (caps.image_generation || /\b(image|flux|dall|sdxl|stable.diffusion)\b/.test(text))
-			return 'image';
-		if (caps.vision || /\b(vision|vl\b|multimodal)\b/.test(text)) return 'vision';
-		if (caps.code || /\b(coder|code|program)\b/.test(text)) return 'code';
-		return 'text';
-	};
 </script>
 
 <button

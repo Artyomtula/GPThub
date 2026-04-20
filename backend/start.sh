@@ -22,13 +22,13 @@ fi
 
 PORT="${PORT:-8080}"
 HOST="${HOST:-0.0.0.0}"
-if test "$WEBUI_SECRET_KEY $WEBUI_JWT_SECRET_KEY" = " "; then
+if test -z "$WEBUI_SECRET_KEY" && test -z "$WEBUI_JWT_SECRET_KEY"; then
   echo "Loading WEBUI_SECRET_KEY from file, not provided as an environment variable."
 
   if ! [ -e "$KEY_FILE" ]; then
     echo "Generating WEBUI_SECRET_KEY"
-    # Generate a random value to use as a WEBUI_SECRET_KEY in case the user didn't provide one.
-    echo $(head -c 12 /dev/random | base64) > "$KEY_FILE"
+    # Generate a cryptographically strong random key (32 bytes = 256 bits, base64-encoded).
+    echo $(head -c 32 /dev/urandom | base64) > "$KEY_FILE"
   fi
 
   echo "Loading WEBUI_SECRET_KEY from $KEY_FILE"

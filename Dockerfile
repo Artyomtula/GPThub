@@ -19,9 +19,9 @@ ARG USE_AUXILIARY_EMBEDDING_MODEL=TaylorAI/bge-micro-v2
 ARG USE_TIKTOKEN_ENCODING_NAME="cl100k_base"
 
 ARG BUILD_HASH=dev-build
-# Override at your own risk - non-root configurations are untested
-ARG UID=0
-ARG GID=0
+# Non-root by default for security. Override with --build-arg UID=0 if needed.
+ARG UID=1000
+ARG GID=1000
 
 ######## WebUI frontend ########
 FROM --platform=$BUILDPLATFORM node:22-alpine3.20 AS build
