@@ -83,7 +83,7 @@ def extract_json_object(text: str) -> dict | None:
     end = text.rfind('}')
     if start == -1 or end == -1 or end <= start:
         return None
-    candidate = text[start: end + 1]
+    candidate = text[start : end + 1]
     try:
         parsed = json.loads(candidate)
         return parsed if isinstance(parsed, dict) else None
@@ -181,9 +181,7 @@ def prepend_virtual_models(models: list[dict[str, Any]]) -> list[dict[str, Any]]
 def infer_model_capabilities(model: dict[str, Any]) -> set[str]:
     capabilities: set[str] = set()
     meta_caps = (
-        model.get('info', {}).get('meta', {}).get('capabilities', {})
-        if isinstance(model.get('info'), dict)
-        else {}
+        model.get('info', {}).get('meta', {}).get('capabilities', {}) if isinstance(model.get('info'), dict) else {}
     )
 
     if isinstance(meta_caps, dict):
@@ -262,9 +260,15 @@ def infer_request_capability(prompt: str) -> str:
             return 'image_generation'
         return 'vision'
 
-    if re.search(r'(нарис|сгенерируй\s+изображ|создай\s+изображ|сделай\s+изображ|image|illustrat|draw|render|logo|poster)', normalized):
+    if re.search(
+        r'(нарис|сгенерируй\s+изображ|создай\s+изображ|сделай\s+изображ|image|illustrat|draw|render|logo|poster)',
+        normalized,
+    ):
         return 'image_generation'
-    if re.search(r'(что на изображ|что изображ|опиши.*фото|расскажи.*фото|проанализир.*фото|vision|analy[sz]e image|caption image|describe.*image|what.*photo)', normalized):
+    if re.search(
+        r'(что на изображ|что изображ|опиши.*фото|расскажи.*фото|проанализир.*фото|vision|analy[sz]e image|caption image|describe.*image|what.*photo)',
+        normalized,
+    ):
         return 'vision'
     if re.search(
         r'(создай.*презентац|сделай.*презентац|напиши.*презентац|презентац.*тему|'

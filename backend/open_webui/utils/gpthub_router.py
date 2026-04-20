@@ -85,11 +85,7 @@ def parse_model_selection(form_data: dict) -> tuple[str, list[str]]:
 
         selection_model_ids = selection.get('model_ids')
         if isinstance(selection_model_ids, list):
-            model_ids = [
-                model_id
-                for model_id in selection_model_ids
-                if isinstance(model_id, str) and model_id.strip()
-            ]
+            model_ids = [model_id for model_id in selection_model_ids if isinstance(model_id, str) and model_id.strip()]
 
     legacy_mode = form_data.get('model_selection_mode')
     if mode is None and legacy_mode in {'auto', 'manual'}:
@@ -155,7 +151,7 @@ def extract_router_json(text: str) -> dict[str, Any] | None:
     brace_start = stripped.find('{')
     brace_end = stripped.rfind('}')
     if brace_start >= 0 and brace_end > brace_start:
-        candidates.insert(0, stripped[brace_start: brace_end + 1])
+        candidates.insert(0, stripped[brace_start : brace_end + 1])
 
     for candidate in candidates:
         try:
@@ -235,17 +231,12 @@ def is_deep_research_model(model: dict | None) -> bool:
     if not model:
         return False
 
-    text = f"{(model.get('id') or '').lower()} {(model.get('name') or '').lower()}"
+    text = f'{(model.get("id") or "").lower()} {(model.get("name") or "").lower()}'
     tags = model.get('tags') or []
-    tag_text = ' '.join(
-        [str(tag.get('name', '')).lower() for tag in tags if isinstance(tag, dict)]
-    )
+    tag_text = ' '.join([str(tag.get('name', '')).lower() for tag in tags if isinstance(tag, dict)])
     text = f'{text} {tag_text}'
 
-    return any(
-        marker in text
-        for marker in ['deepseek', 'reason', 'r1', 'o1', 'o3', 'analysis', 'think', 'research']
-    )
+    return any(marker in text for marker in ['deepseek', 'reason', 'r1', 'o1', 'o3', 'analysis', 'think', 'research'])
 
 
 def pick_preferred_model_for_capability(
@@ -285,9 +276,20 @@ def pick_preferred_model_for_capability(
 
 
 _NON_CHAT_MARKERS: tuple[str, ...] = (
-    'embedding', 'embeddings', 'embed', 'bge-', '/bge', 'e5-',
-    'rerank', 'reranker', 'colbert', 'jina-emb', 'text-embedding',
-    'whisper', 'asr', 'transcrib',
+    'embedding',
+    'embeddings',
+    'embed',
+    'bge-',
+    '/bge',
+    'e5-',
+    'rerank',
+    'reranker',
+    'colbert',
+    'jina-emb',
+    'text-embedding',
+    'whisper',
+    'asr',
+    'transcrib',
 )
 
 
@@ -295,11 +297,9 @@ def is_non_chat_model(model: dict | None) -> bool:
     if not model:
         return False
 
-    text = f"{(model.get('id') or '').lower()} {(model.get('name') or '').lower()}"
+    text = f'{(model.get("id") or "").lower()} {(model.get("name") or "").lower()}'
     tags = model.get('tags') or []
-    tag_text = ' '.join(
-        [str(tag.get('name', '')).lower() for tag in tags if isinstance(tag, dict)]
-    )
+    tag_text = ' '.join([str(tag.get('name', '')).lower() for tag in tags if isinstance(tag, dict)])
     text = f'{text} {tag_text}'
     return any(marker in text for marker in _NON_CHAT_MARKERS)
 
@@ -353,7 +353,7 @@ def _recommend_switch_line(
     if not fallback:
         fallback = t('guidance.switch_auto')
     if model_name and model_id:
-        switch_href = f"gpthub://select-model?{urlencode({'model': model_id})}"
+        switch_href = f'gpthub://select-model?{urlencode({"model": model_id})}'
         return f'[{model_name}]({switch_href})'
     return fallback
 
@@ -473,9 +473,7 @@ async def resolve_effective_model_selection(
             return False
         if is_virtual_model(model):
             return True
-        if not bypass_model_access_control and user and (
-            user.role != 'admin' or not bypass_admin_access_control
-        ):
+        if not bypass_model_access_control and user and (user.role != 'admin' or not bypass_admin_access_control):
             try:
                 if check_model_access_fn:
                     check_model_access_fn(user, model)
@@ -485,11 +483,13 @@ async def resolve_effective_model_selection(
 
     available_model_ids = [mid for mid in available_models if is_accessible(mid)]
     routable_model_ids = [
-        mid for mid, model in available_models.items()
+        mid
+        for mid, model in available_models.items()
         if not is_virtual_model(model) and not is_non_chat_model(model) and is_accessible(mid)
     ]
     chat_compatible_model_ids = [
-        mid for mid in available_model_ids
+        mid
+        for mid in available_model_ids
         if (model := available_models.get(mid)) and not is_virtual_model(model) and not is_non_chat_model(model)
     ]
     capability_graph = build_capability_graph(available_models, routable_model_ids)
@@ -605,7 +605,9 @@ async def resolve_effective_model_selection(
             if resolved_model_id is None:
                 resolved_capability = infer_request_capability(last_user_prompt)
                 resolved_model_id = pick_preferred_model_for_capability(
-                    capability_graph, resolved_capability, available_models,
+                    capability_graph,
+                    resolved_capability,
+                    available_models,
                     prefer_deep_research=prefer_deep_research,
                 )
                 resolution_reason = 'router_heuristic_fallback'
@@ -617,13 +619,12 @@ async def resolve_effective_model_selection(
                     resolved_capability = 'image_generation'
 
             resolved_model_id = pick_preferred_model_for_capability(
-                capability_graph, resolved_capability, available_models,
+                capability_graph,
+                resolved_capability,
+                available_models,
                 prefer_deep_research=prefer_deep_research,
             )
-            resolution_reason = (
-                'manual_virtual_capability' if mode == 'manual'
-                else 'auto_capability_without_router'
-            )
+            resolution_reason = 'manual_virtual_capability' if mode == 'manual' else 'auto_capability_without_router'
 
         if requested_virtual_model_id and resolved_model_id:
             display_model_id = requested_virtual_model_id
@@ -645,7 +646,9 @@ async def resolve_effective_model_selection(
     for cap_override in ('image_generation', 'presentation'):
         if resolved_capability == cap_override:
             text_model_id = pick_preferred_model_for_capability(
-                capability_graph, 'text', available_models,
+                capability_graph,
+                'text',
+                available_models,
                 prefer_deep_research=prefer_deep_research,
             )
             if text_model_id:
@@ -668,7 +671,10 @@ async def resolve_effective_model_selection(
 
     log.info(
         'routing resolved: mode=%s model=%s capability=%s reason=%s',
-        mode, resolved_model_id, resolved_capability, resolution_reason,
+        mode,
+        resolved_model_id,
+        resolved_capability,
+        resolution_reason,
     )
 
     return {

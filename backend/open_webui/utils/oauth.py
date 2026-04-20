@@ -837,13 +837,13 @@ class OAuthClientManager:
     async def handle_authorize(self, request, client_id: str) -> RedirectResponse:
         client = self.get_client(client_id) or self.ensure_client_from_config(client_id)
         if client is None:
-            raise HTTPException(404, detail="Resource not found")
+            raise HTTPException(404, detail='Resource not found')
         client_info = self.get_client_info(client_id)
         if client_info is None:
             # ensure_client_from_config registers client_info too
             client_info = self.get_client_info(client_id)
         if client_info is None:
-            raise HTTPException(404, detail="Resource not found")
+            raise HTTPException(404, detail='Resource not found')
 
         redirect_uri = client_info.redirect_uris[0] if client_info.redirect_uris else None
         redirect_uri_str = str(redirect_uri) if redirect_uri else None
@@ -852,7 +852,7 @@ class OAuthClientManager:
     async def handle_callback(self, request, client_id: str, user_id: str, response):
         client = self.get_client(client_id) or self.ensure_client_from_config(client_id)
         if client is None:
-            raise HTTPException(404, detail="Resource not found")
+            raise HTTPException(404, detail='Resource not found')
 
         error_message = None
         try:
@@ -1352,14 +1352,14 @@ class OAuthManager:
 
     async def handle_login(self, request, provider):
         if provider not in OAUTH_PROVIDERS:
-            raise HTTPException(404, detail="Resource not found")
+            raise HTTPException(404, detail='Resource not found')
         # If the provider has a custom redirect URL, use that, otherwise automatically generate one
         redirect_uri = OAUTH_PROVIDERS[provider].get('redirect_uri') or request.url_for(
             'oauth_login_callback', provider=provider
         )
         client = self.get_client(provider)
         if client is None:
-            raise HTTPException(404, detail="Resource not found")
+            raise HTTPException(404, detail='Resource not found')
 
         kwargs = {}
         if auth_manager_config.OAUTH_AUDIENCE:
@@ -1371,7 +1371,7 @@ class OAuthManager:
 
     async def handle_callback(self, request, provider, response, db=None):
         if provider not in OAUTH_PROVIDERS:
-            raise HTTPException(404, detail="Resource not found")
+            raise HTTPException(404, detail='Resource not found')
 
         error_message = None
         try:

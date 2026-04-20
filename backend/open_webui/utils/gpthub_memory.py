@@ -174,9 +174,7 @@ async def extract_long_term_memory_candidates_llm(
         return []
 
     max_facts = max(1, int(os.getenv('MEMORY_EXTRACTION_MAX_FACTS', '4')))
-    extractor_model_id = pick_memory_extractor_model(
-        selection_effective, request.app.state.MODELS, fallback_model_id
-    )
+    extractor_model_id = pick_memory_extractor_model(selection_effective, request.app.state.MODELS, fallback_model_id)
 
     extraction_payload = {
         'model': extractor_model_id,
@@ -185,10 +183,7 @@ async def extract_long_term_memory_candidates_llm(
             {'role': 'system', 'content': memory_extractor_system_prompt(max_facts)},
             {
                 'role': 'user',
-                'content': (
-                    f'User message:\n{user_prompt}\n\n'
-                    f'Assistant reply:\n{assistant_content or "(empty)"}\n'
-                ),
+                'content': (f'User message:\n{user_prompt}\n\nAssistant reply:\n{assistant_content or "(empty)"}\n'),
             },
         ],
         'params': {'temperature': 0},
@@ -254,10 +249,19 @@ async def extract_long_term_memory_candidates_llm(
 # Store memories (DB + vector)
 # ---------------------------------------------------------------------------
 
-_SINGLETON_TYPES = frozenset({
-    'identity', 'profile', 'timezone', 'city', 'role',
-    'project', 'goal', 'constraint', 'preference',
-})
+_SINGLETON_TYPES = frozenset(
+    {
+        'identity',
+        'profile',
+        'timezone',
+        'city',
+        'role',
+        'project',
+        'goal',
+        'constraint',
+        'preference',
+    }
+)
 
 
 async def store_long_term_memories(
@@ -346,9 +350,7 @@ async def store_long_term_memories(
 
                 record['status'] = 'inactive'
                 record['updated_at'] = now_ts
-                memories_model.update_memory_by_id_and_user_id(
-                    mem.id, user.id, json.dumps(record, ensure_ascii=False)
-                )
+                memories_model.update_memory_by_id_and_user_id(mem.id, user.id, json.dumps(record, ensure_ascii=False))
                 if vector_db_client:
                     try:
                         vector_db_client.delete(collection_name=f'user-memory-{user.id}', ids=[mem.id])
@@ -416,7 +418,9 @@ async def run_long_term_memory_write(
         chat_completion_handler_fn=chat_completion_handler_fn,
     )
     inserted = await store_long_term_memories(
-        request, user, memory_candidates,
+        request,
+        user,
+        memory_candidates,
         memories_model=memories_model,
         vector_db_client=vector_db_client,
     )

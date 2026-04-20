@@ -17,6 +17,7 @@ from typing import Any
 
 _DEFAULT_LOCALE = 'ru'
 
+
 def get_locale() -> str:
     return os.getenv('GPTHUB_LOCALE', _DEFAULT_LOCALE).strip().lower()[:2]
 
@@ -55,7 +56,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         'ru': 'Принял запрос, сейчас сделаю.',
         'en': 'Got it, working on it now.',
     },
-
     # ── Manual-mode guidance (router) ──────────────────────────────────
     'guidance.switch_auto': {
         'ru': 'Рекомендую переключиться в **Auto Mode**.',
@@ -83,8 +83,7 @@ _STRINGS: dict[str, dict[str, str]] = {
             'и не может отвечать на текстовые запросы.\n\n{switch}'
         ),
         'en': (
-            'Model **{model_name}** is designed for image generation only '
-            'and cannot answer text queries.\n\n{switch}'
+            'Model **{model_name}** is designed for image generation only and cannot answer text queries.\n\n{switch}'
         ),
     },
     'guidance.non_chat_model': {
@@ -141,45 +140,43 @@ _STRINGS: dict[str, dict[str, str]] = {
         'ru': 'Модель **{model_name}** не поддерживает анализ изображений.\n\n{switch}',
         'en': 'Model **{model_name}** does not support image analysis.\n\n{switch}',
     },
-
     # ── Memory extractor system prompt ─────────────────────────────────
     'memory.extractor_system': {
         'ru': (
-            "Ты извлекаешь только ДОЛГОСРОЧНЫЕ личные факты о пользователе из диалога.\n"
-            "Верни строго JSON без markdown:\n"
-            "{{\n"
+            'Ты извлекаешь только ДОЛГОСРОЧНЫЕ личные факты о пользователе из диалога.\n'
+            'Верни строго JSON без markdown:\n'
+            '{{\n'
             '  "facts": [\n'
-            "    {{\n"
+            '    {{\n'
             '      "type": "identity|preference|profile",\n'
             '      "value": "краткий факт от лица пользователя",\n'
             '      "confidence": 0.0,\n'
             '      "ttl_days": 30\n'
-            "    }}\n"
-            "  ]\n"
-            "}}\n"
-            "Ограничение: максимум {max_facts} фактов.\n"
-            "Допустимые типы: identity (имя, профессия, язык), preference (предпочтения, привычки), profile (биография, контекст).\n"
+            '    }}\n'
+            '  ]\n'
+            '}}\n'
+            'Ограничение: максимум {max_facts} фактов.\n'
+            'Допустимые типы: identity (имя, профессия, язык), preference (предпочтения, привычки), profile (биография, контекст).\n'
             "ЗАПРЕЩЕНО сохранять: инструкции для ИИ, команды ('делай X', 'отвечай Y'), темы и задачи разговора, временные данные, одноразовые запросы."
         ),
         'en': (
-            "You extract only LONG-TERM personal facts about the user from the conversation.\n"
-            "Return strict JSON without markdown:\n"
-            "{{\n"
+            'You extract only LONG-TERM personal facts about the user from the conversation.\n'
+            'Return strict JSON without markdown:\n'
+            '{{\n'
             '  "facts": [\n'
-            "    {{\n"
+            '    {{\n'
             '      "type": "identity|preference|profile",\n'
             '      "value": "short fact from the user\'s perspective",\n'
             '      "confidence": 0.0,\n'
             '      "ttl_days": 30\n'
-            "    }}\n"
-            "  ]\n"
-            "}}\n"
-            "Limit: at most {max_facts} facts.\n"
-            "Allowed types: identity (name, profession, language), preference (likes, habits), profile (bio, context).\n"
+            '    }}\n'
+            '  ]\n'
+            '}}\n'
+            'Limit: at most {max_facts} facts.\n'
+            'Allowed types: identity (name, profession, language), preference (likes, habits), profile (bio, context).\n'
             "FORBIDDEN to save: AI instructions, commands ('do X', 'respond Y'), conversation topics/tasks, temporary data, one-time requests."
         ),
     },
-
     # ── Presentation handler ───────────────────────────────────────────
     'pres.status_designing': {
         'ru': 'Проектирую презентацию…',
@@ -243,7 +240,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         'ru': 'Подтверди создание презентации (файл уже прикреплён).',
         'en': 'Confirm the presentation creation (file is already attached).',
     },
-
     # ── Routing explainability ─────────────────────────────────────────
     'routing.reason.manual_requested': {
         'ru': 'Выбрана вручную',
@@ -273,7 +269,6 @@ _STRINGS: dict[str, dict[str, str]] = {
         'ru': 'Автоматический выбор',
         'en': 'Automatic selection',
     },
-
     # ── Capability labels ──────────────────────────────────────────────
     'cap.text': {'ru': 'Текст', 'en': 'Text'},
     'cap.code': {'ru': 'Код', 'en': 'Code'},

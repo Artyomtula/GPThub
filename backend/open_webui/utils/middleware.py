@@ -1433,17 +1433,13 @@ async def chat_memory_handler(request: Request, form_data: dict, extra_params: d
                 except Exception:
                     pass
                 created_at_date = (
-                    time.strftime('%Y-%m-%d', time.localtime(mem.created_at))
-                    if mem.created_at
-                    else 'Unknown Date'
+                    time.strftime('%Y-%m-%d', time.localtime(mem.created_at)) if mem.created_at else 'Unknown Date'
                 )
                 user_context += f'{idx + 1}. [{created_at_date}] [{mem_type}{confidence_text}] {mem_value}\n'
             else:
                 # Unstructured legacy memory — include as-is
                 created_at_date = (
-                    time.strftime('%Y-%m-%d', time.localtime(mem.created_at))
-                    if mem.created_at
-                    else 'Unknown Date'
+                    time.strftime('%Y-%m-%d', time.localtime(mem.created_at)) if mem.created_at else 'Unknown Date'
                 )
                 user_context += f'{idx + 1}. [{created_at_date}] {mem.content}\n'
     else:
@@ -1490,7 +1486,9 @@ async def chat_memory_handler(request: Request, form_data: dict, extra_params: d
                             confidence_text = f' ({round(float(confidence), 2)})'
                         except Exception:
                             pass
-                        user_context += f'{doc_idx + 1}. [{created_at_date}] [{mem_type}{confidence_text}] {mem_value}\n'
+                        user_context += (
+                            f'{doc_idx + 1}. [{created_at_date}] [{mem_type}{confidence_text}] {mem_value}\n'
+                        )
                     else:
                         user_context += f'{doc_idx + 1}. [{created_at_date}] {doc}\n'
 
@@ -1817,7 +1815,7 @@ async def chat_research_handler(request: Request, form_data: dict, extra_params:
         '(List the URLs you referenced)\n\n'
         'Cite sources inline using [1], [2], etc. notation. '
         'Be thorough, objective, and well-organised. '
-        'Write in the same language as the user\'s question.'
+        "Write in the same language as the user's question."
     )
 
     form_data['messages'] = add_or_update_system_message(
@@ -1942,10 +1940,7 @@ async def chat_audio_transcription_handler(request: Request, form_data: dict, ex
     if not files:
         return form_data
 
-    audio_file_items = [
-        item for item in files
-        if item.get('content_type', '').startswith(('audio/', 'video/'))
-    ]
+    audio_file_items = [item for item in files if item.get('content_type', '').startswith(('audio/', 'video/'))]
 
     if not audio_file_items:
         return form_data
@@ -3894,11 +3889,23 @@ async def streaming_chat_response_handler(response, ctx):
                     # emit the error body as a chat completion event and return.
                     if not hasattr(response, 'body_iterator'):
                         try:
-                            error_body = response.body.decode('utf-8', 'replace') if isinstance(response.body, bytes) else str(getattr(response, 'body', ''))
+                            error_body = (
+                                response.body.decode('utf-8', 'replace')
+                                if isinstance(response.body, bytes)
+                                else str(getattr(response, 'body', ''))
+                            )
                             error_data = json.loads(error_body) if error_body else {}
                         except Exception:
                             error_data = {}
-                        await event_emitter({'type': 'chat:completion', 'data': {'error': error_data or {'detail': 'Model returned a non-streaming response.'}, 'done': True}})
+                        await event_emitter(
+                            {
+                                'type': 'chat:completion',
+                                'data': {
+                                    'error': error_data or {'detail': 'Model returned a non-streaming response.'},
+                                    'done': True,
+                                },
+                            }
+                        )
                         return
 
                     async for line in response.body_iterator:

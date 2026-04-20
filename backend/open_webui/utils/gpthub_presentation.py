@@ -190,13 +190,20 @@ def build_pptx(
             if layout_name == 'hero':
                 slide.shapes.add_picture(
                     io.BytesIO(img_bytes),
-                    Inches(il), Inches(it), Inches(iw), Inches(ih),
+                    Inches(il),
+                    Inches(it),
+                    Inches(iw),
+                    Inches(ih),
                 )
                 from pptx.oxml.ns import qn
                 from lxml import etree
 
                 overlay = slide.shapes.add_shape(
-                    1, Inches(0), Inches(0), Inches(_SLIDE_W), Inches(_SLIDE_H),
+                    1,
+                    Inches(0),
+                    Inches(0),
+                    Inches(_SLIDE_W),
+                    Inches(_SLIDE_H),
                 )
                 overlay.fill.solid()
                 overlay.fill.fore_color.rgb = RGBColor(*bg_color)
@@ -211,7 +218,10 @@ def build_pptx(
             else:
                 slide.shapes.add_picture(
                     io.BytesIO(img_bytes),
-                    Inches(il), Inches(it), Inches(iw), Inches(ih),
+                    Inches(il),
+                    Inches(it),
+                    Inches(iw),
+                    Inches(ih),
                 )
 
         # Title
@@ -281,10 +291,12 @@ async def generate_slide_images(
             continue
 
         generated += 1
-        await event_emitter({
-            'type': 'status',
-            'data': {'description': t('pres.status_image_n', n=generated, total=total), 'done': False},
-        })
+        await event_emitter(
+            {
+                'type': 'status',
+                'data': {'description': t('pres.status_image_n', n=generated, total=total), 'done': False},
+            }
+        )
 
         try:
             images = await image_generations_fn(
@@ -348,9 +360,7 @@ async def chat_presentation_handler(
     if not __event_emitter__:
         return form_data
 
-    await __event_emitter__(
-        {'type': 'status', 'data': {'description': t('pres.status_designing'), 'done': False}}
-    )
+    await __event_emitter__({'type': 'status', 'data': {'description': t('pres.status_designing'), 'done': False}})
 
     _get_last = get_last_user_message_fn
     user_message = _get_last(form_data.get('messages', [])) if _get_last else ''
@@ -443,19 +453,19 @@ async def chat_presentation_handler(
         slide_image_urls: dict[int, str] = {}
         image_gen_available = getattr(request.app.state.config, 'ENABLE_IMAGE_GENERATION', False)
         if image_gen_available:
-            await __event_emitter__(
-                {'type': 'status', 'data': {'description': t('pres.status_images'), 'done': False}}
-            )
+            await __event_emitter__({'type': 'status', 'data': {'description': t('pres.status_images'), 'done': False}})
             slide_images, slide_image_urls = await generate_slide_images(
-                request, slides, metadata, user, __event_emitter__,
+                request,
+                slides,
+                metadata,
+                user,
+                __event_emitter__,
                 image_generations_fn=image_generations_fn,
                 create_image_form_cls=create_image_form_cls,
             )
 
         # Build PPTX
-        await __event_emitter__(
-            {'type': 'status', 'data': {'description': t('pres.status_building'), 'done': False}}
-        )
+        await __event_emitter__({'type': 'status', 'data': {'description': t('pres.status_building'), 'done': False}})
         file_bytes = build_pptx(slides_data, theme=theme, slide_images=slide_images)
 
         pres_title = slides_data.get('title', 'Presentation')
@@ -496,9 +506,7 @@ async def chat_presentation_handler(
         slide_count = len(slides)
         img_count = len(slide_images)
 
-        await __event_emitter__(
-            {'type': 'status', 'data': {'description': t('pres.status_done'), 'done': True}}
-        )
+        await __event_emitter__({'type': 'status', 'data': {'description': t('pres.status_done'), 'done': True}})
         await __event_emitter__(
             {
                 'type': 'files',
@@ -517,10 +525,7 @@ async def chat_presentation_handler(
             }
         )
 
-        slide_outline = '; '.join(
-            f'{t("pres.slide_n", n=i+1)}: {s.get("title", "")}'
-            for i, s in enumerate(slides)
-        )
+        slide_outline = '; '.join(f'{t("pres.slide_n", n=i + 1)}: {s.get("title", "")}' for i, s in enumerate(slides))
         img_note = t('pres.with_images', count=img_count) if img_count else ''
         system_message_content = t(
             'pres.system_success',
@@ -532,9 +537,7 @@ async def chat_presentation_handler(
 
     except Exception as e:
         log.exception(e)
-        await __event_emitter__(
-            {'type': 'status', 'data': {'description': t('pres.status_error'), 'done': True}}
-        )
+        await __event_emitter__({'type': 'status', 'data': {'description': t('pres.status_error'), 'done': True}})
         system_message_content = t('pres.system_error', error=e)
 
     _add_sys = add_or_update_system_message_fn

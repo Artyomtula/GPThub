@@ -1979,7 +1979,9 @@ async def chat_completion(
             # Long-term memory write: supports both non-stream and stream responses.
             try:
                 if _memory_enabled_for_user(request, user, metadata.get('features') or {}):
-                    assistant_content = _extract_assistant_content_from_response(response) if isinstance(response, dict) else ''
+                    assistant_content = (
+                        _extract_assistant_content_from_response(response) if isinstance(response, dict) else ''
+                    )
                     if isinstance(response, StreamingResponse):
                         # Do not block streaming latency with extraction/upsert.
                         asyncio.create_task(

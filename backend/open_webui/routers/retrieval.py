@@ -1518,10 +1518,7 @@ def save_docs_to_vector_db(
         # Web-search pipeline already has a graceful fallback to inline docs.
         # Keep logs concise here to avoid noisy full tracebacks on transient
         # network failures (e.g. embedding provider resets connection).
-        log.warning(
-            f'save_docs_to_vector_db failed for {collection_name}: '
-            f'{e.__class__.__name__}: {e}'
-        )
+        log.warning(f'save_docs_to_vector_db failed for {collection_name}: {e.__class__.__name__}: {e}')
         raise
 
 
